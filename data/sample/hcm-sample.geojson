@@ -1,0 +1,47 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "s1",
+      "geometry": { "type": "Point", "coordinates": [106.6792, 10.7748] },
+      "properties": { "name": "Trường THCS Hoà Hưng", "amenity": "school" }
+    },
+    {
+      "type": "Feature",
+      "id": "h1",
+      "geometry": { "type": "Point", "coordinates": [106.6830, 10.7710] },
+      "properties": { "name": "Bệnh viện Đa khoa Sài Gòn", "amenity": "hospital" }
+    },
+    {
+      "type": "Feature",
+      "id": "p1",
+      "geometry": { "type": "Point", "coordinates": [106.6750, 10.7760] },
+      "properties": { "name": "Công viên Lê Thị Riêng", "leisure": "park" }
+    },
+    {
+      "type": "Feature",
+      "id": "m1",
+      "geometry": { "type": "Point", "coordinates": [106.6810, 10.7725] },
+      "properties": { "name": "Chợ Hoà Hưng", "amenity": "marketplace" }
+    },
+    {
+      "type": "Feature",
+      "id": "r1",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[106.675, 10.772], [106.677, 10.774], [106.679, 10.775]]
+      },
+      "properties": { "name": "Đường Cách Mạng Tháng 8", "highway": "primary" }
+    },
+    {
+      "type": "Feature",
+      "id": "r2",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[106.677, 10.770], [106.677, 10.774], [106.677, 10.777]]
+      },
+      "properties": { "name": "Đường Lý Thường Kiệt", "highway": "secondary" }
+    }
+  ]
+}

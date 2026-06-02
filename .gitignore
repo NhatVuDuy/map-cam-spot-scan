@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.pbf
+*.osm
+data/vietnam-*.osm.pbf
+data/*.pbf
+.DS_Store
