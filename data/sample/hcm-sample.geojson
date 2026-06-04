@@ -1,0 +1,111 @@
+{
+  "type": "FeatureCollection",
+  "name": "HCM Sample Data",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "school-1",
+      "geometry": { "type": "Point", "coordinates": [106.6792, 10.7748] },
+      "properties": { "name": "Trường THCS Hoà Hưng", "amenity": "school" }
+    },
+    {
+      "type": "Feature",
+      "id": "school-2",
+      "geometry": { "type": "Point", "coordinates": [106.6810, 10.7720] },
+      "properties": { "name": "Trường Tiểu học Lê Văn Tám", "amenity": "school" }
+    },
+    {
+      "type": "Feature",
+      "id": "hospital-1",
+      "geometry": { "type": "Point", "coordinates": [106.6760, 10.7735] },
+      "properties": { "name": "Bệnh viện Nguyễn Tri Phương", "amenity": "hospital" }
+    },
+    {
+      "type": "Feature",
+      "id": "hospital-2",
+      "geometry": { "type": "Point", "coordinates": [106.6835, 10.7705] },
+      "properties": { "name": "Phòng khám Đa khoa 315", "amenity": "clinic" }
+    },
+    {
+      "type": "Feature",
+      "id": "park-1",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [106.6770, 10.7760],
+          [106.6785, 10.7760],
+          [106.6785, 10.7775],
+          [106.6770, 10.7775],
+          [106.6770, 10.7760]
+        ]]
+      },
+      "properties": { "name": "Công viên Tao Đàn", "leisure": "park" }
+    },
+    {
+      "type": "Feature",
+      "id": "market-1",
+      "geometry": { "type": "Point", "coordinates": [106.6750, 10.7715] },
+      "properties": { "name": "Chợ Bến Thành", "amenity": "marketplace" }
+    },
+    {
+      "type": "Feature",
+      "id": "hotel-1",
+      "geometry": { "type": "Point", "coordinates": [106.6800, 10.7745] },
+      "properties": { "name": "Khách sạn Rex", "tourism": "hotel" }
+    },
+    {
+      "type": "Feature",
+      "id": "government-1",
+      "geometry": { "type": "Point", "coordinates": [106.6825, 10.7730] },
+      "properties": { "name": "UBND Quận 3", "amenity": "townhall" }
+    },
+    {
+      "type": "Feature",
+      "id": "road-1",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [106.6750, 10.7700],
+          [106.6770, 10.7720],
+          [106.6790, 10.7730],
+          [106.6820, 10.7740]
+        ]
+      },
+      "properties": { "name": "Đường Nguyễn Huệ", "highway": "primary" }
+    },
+    {
+      "type": "Feature",
+      "id": "road-2",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [106.6770, 10.7690],
+          [106.6770, 10.7720],
+          [106.6770, 10.7760],
+          [106.6770, 10.7790]
+        ]
+      },
+      "properties": { "name": "Đường Lê Duẩn", "highway": "secondary" }
+    },
+    {
+      "type": "Feature",
+      "id": "road-3",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [106.6740, 10.7720],
+          [106.6770, 10.7720],
+          [106.6800, 10.7720],
+          [106.6830, 10.7720]
+        ]
+      },
+      "properties": { "name": "Đường Nam Kỳ Khởi Nghĩa", "highway": "tertiary" }
+    },
+    {
+      "type": "Feature",
+      "id": "conference-1",
+      "geometry": { "type": "Point", "coordinates": [106.6815, 10.7755] },
+      "properties": { "name": "Trung tâm Hội nghị GEM Center", "amenity": "conference_centre" }
+    }
+  ]
+}

@@ -2,35 +2,7 @@ import { OverpassAdapter } from "./overpassAdapter.js";
 import { GoongAdapter } from "./goongAdapter.js";
 import { GeoJSONAdapter } from "./geojsonAdapter.js";
 import { PostGISAdapter } from "./postgisAdapter.js";
-
-/**
- * BaseAdapter — interface contract for all data source adapters.
- * All adapters must implement fetchPOI and fetchRoads.
- */
-export class BaseAdapter {
-  /**
-   * Fetch points of interest within a bounding box for given categories.
-   * @param {number[]} bbox - [south, west, north, east]
-   * @param {string[]} categories - category keys
-   * @param {object} config - adapter-specific config
-   * @returns {Promise<RawFeature[]>}
-   */
-  // eslint-disable-next-line no-unused-vars
-  async fetchPOI(bbox, categories, config) {
-    throw new Error("fetchPOI() not implemented");
-  }
-
-  /**
-   * Fetch road ways within a bounding box.
-   * @param {number[]} bbox - [south, west, north, east]
-   * @param {object} config - adapter-specific config
-   * @returns {Promise<RawWay[]>}
-   */
-  // eslint-disable-next-line no-unused-vars
-  async fetchRoads(bbox, config) {
-    throw new Error("fetchRoads() not implemented");
-  }
-}
+export { BaseAdapter } from "./baseAdapter.js";
 
 /**
  * Factory — returns the correct adapter instance for a sourceId.

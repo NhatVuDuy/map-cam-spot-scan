@@ -1,5 +1,5 @@
 import fetch from "node-fetch";
-import { BaseAdapter } from "./index.js";
+import { BaseAdapter } from "./baseAdapter.js";
 import { config as appConfig } from "../config/index.js";
 import { CATEGORIES } from "@camera-scanner/shared";
 
