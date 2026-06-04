@@ -1,0 +1,10 @@
+{
+  "name": "@camera-scanner/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "categories.js",
+  "exports": {
+    ".": "./categories.js",
+    "./categories": "./categories.js"
+  }
+}

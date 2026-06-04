@@ -1,0 +1,29 @@
+version: "3.9"
+
+# Dev override — hot reload, no nginx, ports exposed directly
+services:
+  db:
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./apps/backend
+      target: development
+    environment:
+      NODE_ENV: development
+      CORS_ORIGIN: http://localhost:5173
+    volumes:
+      - ./apps/backend/src:/app/src:ro
+      - ./data:/data:ro
+    command: ["node", "--watch", "src/server.js"]
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      target: development
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/frontend/src:/app/src:ro
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
