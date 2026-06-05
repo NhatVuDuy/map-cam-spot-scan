@@ -114,7 +114,7 @@ function QueryCategories() {
 }
 
 /* ─── main sidebar ────────────────────────────────────────────────────────── */
-export default function Sidebar() {
+export default function Sidebar({ fullscreen = false }) {
   const [mode, setMode] = useState("radius"); // "boundary" | "radius"
   const boundary  = useScanStore((s) => s.boundary);
   const setBoundary = useScanStore((s) => s.setBoundary);
@@ -126,11 +126,13 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: "min(250px, 100vw)", flexShrink: 0,
+      width: fullscreen ? "100%" : "min(250px, 100vw)", flexShrink: 0,
       background: C.bg,
-      borderRight: `1px solid ${C.border}`,
+      borderRight: fullscreen ? "none" : `1px solid ${C.border}`,
       display: "flex", flexDirection: "column",
-      overflow: "hidden", height: "100%",
+      overflow: "hidden",
+      height: fullscreen ? "auto" : "100%",
+      minHeight: fullscreen ? "100%" : undefined,
     }}>
 
       {/* ── mode toggle ─────────────────────────────────────────────────── */}

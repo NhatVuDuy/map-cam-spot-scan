@@ -1,15 +1,21 @@
 import React from "react";
-import { HashRouter as BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import Landing from "./pages/Landing.jsx";
 import Scanner from "./pages/Scanner.jsx";
+import Sys from "./pages/Sys.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
-        <Route path="/" element={<Scanner />} />
-        <Route path="*" element={<NotFound />} />
+        <Route path="/"    element={<Scanner />} />
+        <Route path="/info" element={<Landing />} />
+        <Route path="/sys" element={<Sys />} />
+        {/* Legacy redirect */}
+        <Route path="/map" element={<Navigate to="/" replace />} />
+        <Route path="*"    element={<NotFound />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

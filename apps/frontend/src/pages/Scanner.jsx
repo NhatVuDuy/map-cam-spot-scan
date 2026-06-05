@@ -65,13 +65,13 @@ export default function Scanner() {
             <MapView />
           </div>
           {mobileTab === "settings" && (
-            <div style={{ height: "100%", overflowY: "auto" }}>
-              <Sidebar />
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", background: "#0f172a" }}>
+              <Sidebar fullscreen />
             </div>
           )}
           {mobileTab === "results" && (
-            <div style={{ height: "100%", overflowY: "auto" }}>
-              <RightPanel />
+            <div style={{ position: "absolute", inset: 0, overflowY: "auto", background: "#0a1628" }}>
+              <RightPanel fullscreen />
             </div>
           )}
         </div>
