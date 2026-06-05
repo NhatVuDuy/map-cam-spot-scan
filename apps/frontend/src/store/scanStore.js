@@ -22,6 +22,7 @@ const useScanStore = create((set, get) => ({
   error: null,
   filter: null,
   hoveredPoint: null,
+  selectedPoint: null,
 
   // --- Actions ---
   setSource: (source) => set({ source }),
@@ -30,7 +31,7 @@ const useScanStore = create((set, get) => ({
 
   runScan: async () => {
     const { area, categories } = get();
-    set({ loading: true, error: null, progress: "Đang khởi động...", points: [], roads: [] });
+    set({ loading: true, error: null, progress: "Đang khởi động...", points: [], roads: [], selectedPoint: null });
 
     try {
       const result = await browserScan(
@@ -57,10 +58,11 @@ const useScanStore = create((set, get) => ({
   },
 
   resetResults: () =>
-    set({ points: [], roads: [], bbox: null, stats: {}, error: null, progress: "" }),
+    set({ points: [], roads: [], bbox: null, stats: {}, error: null, progress: "", selectedPoint: null }),
 
   setFilter: (filter) => set({ filter }),
   setHoveredPoint: (hoveredPoint) => set({ hoveredPoint }),
+  setSelectedPoint: (selectedPoint) => set({ selectedPoint }),
 }));
 
 export default useScanStore;

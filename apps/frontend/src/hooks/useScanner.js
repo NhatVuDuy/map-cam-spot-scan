@@ -19,7 +19,7 @@ export function useScanner() {
     error: store.error,
     filter: store.filter,
     hoveredPoint: store.hoveredPoint,
-    // Actions
+    selectedPoint: store.selectedPoint,
     setSource: store.setSource,
     setArea: store.setArea,
     setCategories: store.setCategories,
@@ -27,5 +27,6 @@ export function useScanner() {
     resetResults: store.resetResults,
     setFilter: store.setFilter,
     setHoveredPoint: store.setHoveredPoint,
+    setSelectedPoint: store.setSelectedPoint,
   };
 }
