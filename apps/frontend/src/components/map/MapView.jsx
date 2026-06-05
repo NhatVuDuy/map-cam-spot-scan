@@ -38,6 +38,68 @@ function ReturnBtn({ onClick }) {
   );
 }
 
+// ─── Popup dark-theme style injection ────────────────────────────────────────
+if (typeof document !== "undefined" && !document.getElementById("cam-popup-style")) {
+  const s = document.createElement("style");
+  s.id = "cam-popup-style";
+  s.textContent = `
+    .cam-popup .maplibregl-popup-content {
+      background: #0d1829 !important;
+      border: 1px solid #1e3354 !important;
+      border-radius: 8px !important;
+      padding: 0 !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
+      color: #e2e8f0 !important;
+    }
+    .cam-popup .maplibregl-popup-tip {
+      border-top-color: #1e3354 !important;
+      border-bottom-color: #1e3354 !important;
+    }
+    .cam-popup .maplibregl-popup-close-button {
+      color: #64748b !important;
+      font-size: 1rem !important;
+      padding: 4px 8px !important;
+    }
+    .cam-popup .maplibregl-popup-close-button:hover { color: #e2e8f0 !important; }
+  `;
+  document.head.appendChild(s);
+}
+
+// ─── Popup HTML builder ───────────────────────────────────────────────────────
+function buildPopupHTML({ props, cat, distFmt, score }) {
+  const lat = props.lat != null ? Number(props.lat).toFixed(6) : "—";
+  const lon = props.lon != null ? Number(props.lon).toFixed(6)
+            : props.lng != null ? Number(props.lng).toFixed(6) : "—";
+  const name = props.name || props.id || "—";
+  const color = cat?.color || "#94a3b8";
+  const label = cat?.label || props.category || "—";
+
+  return `
+    <div style="min-width:200px;font-family:system-ui,sans-serif">
+      <!-- header -->
+      <div style="padding:0.65rem 0.85rem 0.5rem;border-bottom:1px solid #1e3354">
+        <div style="font-size:0.88rem;font-weight:700;color:#f1f5f9;margin-bottom:0.25rem;line-height:1.3">${name}</div>
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${color}20;border:1px solid ${color}44;color:${color};font-weight:600">
+          <span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block"></span>
+          ${label}
+        </span>
+      </div>
+      <!-- body -->
+      <div style="padding:0.55rem 0.85rem;display:flex;flex-direction:column;gap:0.3rem">
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem">
+          <span style="color:#64748b">Cách tâm quét</span>
+          <strong style="color:#38BDF8">${distFmt}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem">
+          <span style="color:#64748b">Lat / Lng</span>
+          <code style="color:#94a3b8;font-size:0.72rem">${lat}, ${lon}</code>
+        </div>
+        ${score != null ? `<div style="display:flex;justify-content:space-between;font-size:0.78rem"><span style="color:#64748b">Điểm ưu tiên</span><strong style="color:#FBBF24">★ ${score}</strong></div>` : ""}
+      </div>
+    </div>
+  `;
+}
+
 // ─── Main map inner ───────────────────────────────────────────────────────────
 
 function MapViewInner() {
@@ -163,13 +225,12 @@ function MapViewInner() {
       map.on("click", "points-circle", (e) => {
         const props = e.features[0].properties;
         const cat = CATEGORIES[props.category];
-        new maplibregl.Popup({ offset: 12 })
+        const distFmt = props.distanceM >= 1000
+          ? `${(props.distanceM / 1000).toFixed(2)} km`
+          : `${props.distanceM} m`;
+        new maplibregl.Popup({ offset: 12, className: "cam-popup" })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-size:0.82rem;line-height:1.6;min-width:160px">
-            <strong style="font-size:0.9rem">${props.name || props.id}</strong><br/>
-            <span style="color:${cat?.color || "#888"}">${cat?.label || props.category}</span><br/>
-            Khoảng cách: <strong>${props.distanceM}m</strong>
-          </div>`)
+          .setHTML(buildPopupHTML({ props, cat, distFmt }))
           .addTo(map);
       });
       map.on("mouseenter", "points-circle", () => { map.getCanvas().style.cursor = "pointer"; });
@@ -277,6 +338,8 @@ function MapViewInner() {
           distanceM: p.distanceM,
           score: p.score ?? 0,
           color: CATEGORIES[p.category]?.color || "#888888",
+          lat: p.lat,
+          lon: p.lng,
         },
       })),
     };
@@ -311,14 +374,12 @@ function MapViewInner() {
     map.flyTo({ center: [selectedPoint.lng, selectedPoint.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
 
     const cat = CATEGORIES[selectedPoint.category];
-    popupRef.current = new maplibregl.Popup({ offset: 14, closeButton: true })
+    const distFmt = selectedPoint.distanceM >= 1000
+      ? `${(selectedPoint.distanceM / 1000).toFixed(2)} km`
+      : `${selectedPoint.distanceM} m`;
+    popupRef.current = new maplibregl.Popup({ offset: 14, closeButton: true, className: "cam-popup" })
       .setLngLat([selectedPoint.lng, selectedPoint.lat])
-      .setHTML(`<div style="font-size:0.82rem;line-height:1.6;min-width:160px">
-        <strong style="font-size:0.9rem">${selectedPoint.name || selectedPoint.id}</strong><br/>
-        <span style="color:${cat?.color || "#888"}">${cat?.label || selectedPoint.category}</span><br/>
-        Khoảng cách: <strong>${selectedPoint.distanceM}m</strong>
-        ${selectedPoint.score != null ? `<br/>Score: <strong>${selectedPoint.score}</strong>` : ""}
-      </div>`)
+      .setHTML(buildPopupHTML({ props: { ...selectedPoint, lat: selectedPoint.lat, lon: selectedPoint.lng }, cat, distFmt, score: selectedPoint.score }))
       .addTo(map);
   }, [mapReady, selectedPoint]);
 

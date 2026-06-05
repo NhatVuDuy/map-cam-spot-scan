@@ -80,7 +80,7 @@ function QueryCategories() {
           style={{ fontSize: "0.62rem", padding: "2px 7px", background: "none", border: `1px solid ${C.border}`, color: C.muted, borderRadius: "4px", cursor: "pointer" }}
         >Bỏ chọn</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.1rem 0.25rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.05rem" }}>
         {allKeys.map((key) => {
           const cat = CATEGORIES[key];
           const checked = categories.includes(key);
@@ -124,7 +124,7 @@ export default function Sidebar() {
       background: C.bg,
       borderRight: `1px solid ${C.border}`,
       display: "flex", flexDirection: "column",
-      overflow: "hidden",
+      overflow: "hidden", height: "100%",
     }}>
 
       {/* ── mode toggle ─────────────────────────────────────────────────── */}
@@ -138,7 +138,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* ── scroll area ─────────────────────────────────────────────────── */}
+      {/* ── scroll area (area inputs only) ──────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0.75rem", display: "flex", flexDirection: "column", gap: 0 }}>
 
         {/* ── area inputs ─────────────────────────────────────────────── */}
@@ -193,19 +193,21 @@ export default function Sidebar() {
           </div>
         )}
 
-        {/* ── divider ─────────────────────────────────────────────────── */}
-        <div style={{ height: "1px", background: C.border, margin: "0 -0.75rem 0.75rem" }} />
+      </div>
 
-        {/* ── query categories (what to scan) ─────────────────────────── */}
-        <div>
-          <SectionLabel>Loại địa điểm cần quét</SectionLabel>
-          <QueryCategories />
-        </div>
-
+      {/* ── categories anchored to bottom ────────────────────────────────── */}
+      <div style={{
+        borderTop: `1px solid ${C.border}`,
+        padding: "0.6rem 0.75rem 0.5rem",
+        background: C.bg,
+        flexShrink: 0,
+      }}>
+        <SectionLabel>Loại địa điểm cần quét</SectionLabel>
+        <QueryCategories />
       </div>
 
       {/* ── scan button ─────────────────────────────────────────────────── */}
-      <div style={{ padding: "0.65rem 0.75rem", borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+      <div style={{ padding: "0.55rem 0.75rem", borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
         <ScanButton />
       </div>
     </aside>
