@@ -1,0 +1,182 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "description": "DUMMY — ranh giới hành chính TP. Hồ Chí Minh (xấp xỉ, chỉ dùng để phát triển)",
+    "note": "Thay bằng file GeoJSON chính xác khi có dữ liệu chính thức",
+    "generated": "2026-06-05",
+    "levels": { "district": "Quận / Huyện", "ward": "Phường / Xã" }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Quận 1", "level": "district", "admin_level": 6, "parent": "TP. Hồ Chí Minh", "code": "760" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.7682],[106.7062,10.7682],[106.7062,10.7887],[106.6893,10.7887],[106.6893,10.7682]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Bến Nghé", "level": "ward", "admin_level": 8, "parent": "Quận 1", "code": "26734" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6985,10.7682],[106.7062,10.7682],[106.7062,10.7750],[106.6985,10.7750],[106.6985,10.7682]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Bến Thành", "level": "ward", "admin_level": 8, "parent": "Quận 1", "code": "26737" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.7730],[106.6985,10.7730],[106.6985,10.7800],[106.6893,10.7800],[106.6893,10.7730]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Cầu Kho", "level": "ward", "admin_level": 8, "parent": "Quận 1", "code": "26740" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.7682],[106.6985,10.7682],[106.6985,10.7730],[106.6893,10.7730],[106.6893,10.7682]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Nguyễn Thái Bình", "level": "ward", "admin_level": 8, "parent": "Quận 1", "code": "26746" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.7800],[106.6970,10.7800],[106.6970,10.7850],[106.6893,10.7850],[106.6893,10.7800]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Đa Kao", "level": "ward", "admin_level": 8, "parent": "Quận 1", "code": "26743" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6970,10.7800],[106.7062,10.7800],[106.7062,10.7887],[106.6970,10.7887],[106.6970,10.7800]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Tân Định", "level": "ward", "admin_level": 8, "parent": "Quận 1", "code": "26749" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.7850],[106.6970,10.7850],[106.6970,10.7887],[106.6893,10.7887],[106.6893,10.7850]]] }
+    },
+
+    {
+      "type": "Feature",
+      "properties": { "name": "Quận 3", "level": "district", "admin_level": 6, "parent": "TP. Hồ Chí Minh", "code": "770" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6640,10.7682],[106.6893,10.7682],[106.6893,10.7980],[106.6640,10.7980],[106.6640,10.7682]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Võ Thị Sáu", "level": "ward", "admin_level": 8, "parent": "Quận 3", "code": "27013" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6760,10.7770],[106.6893,10.7770],[106.6893,10.7887],[106.6760,10.7887],[106.6760,10.7770]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 1", "level": "ward", "admin_level": 8, "parent": "Quận 3", "code": "27016" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6760,10.7887],[106.6893,10.7887],[106.6893,10.7980],[106.6760,10.7980],[106.6760,10.7887]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 9", "level": "ward", "admin_level": 8, "parent": "Quận 3", "code": "27019" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6640,10.7887],[106.6760,10.7887],[106.6760,10.7980],[106.6640,10.7980],[106.6640,10.7887]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 4", "level": "ward", "admin_level": 8, "parent": "Quận 3", "code": "27022" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6640,10.7682],[106.6760,10.7682],[106.6760,10.7770],[106.6640,10.7770],[106.6640,10.7682]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 5", "level": "ward", "admin_level": 8, "parent": "Quận 3", "code": "27025" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6640,10.7770],[106.6760,10.7770],[106.6760,10.7887],[106.6640,10.7887],[106.6640,10.7770]]] }
+    },
+
+    {
+      "type": "Feature",
+      "properties": { "name": "Quận 4", "level": "district", "admin_level": 6, "parent": "TP. Hồ Chí Minh", "code": "773" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6970,10.7482],[106.7200,10.7482],[106.7200,10.7682],[106.6970,10.7682],[106.6970,10.7482]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 1", "level": "ward", "admin_level": 8, "parent": "Quận 4", "code": "27088" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.7090,10.7580],[106.7200,10.7580],[106.7200,10.7682],[106.7090,10.7682],[106.7090,10.7580]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 6", "level": "ward", "admin_level": 8, "parent": "Quận 4", "code": "27091" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.7090,10.7482],[106.7200,10.7482],[106.7200,10.7580],[106.7090,10.7580],[106.7090,10.7482]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 13", "level": "ward", "admin_level": 8, "parent": "Quận 4", "code": "27094" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6970,10.7482],[106.7090,10.7482],[106.7090,10.7682],[106.6970,10.7682],[106.6970,10.7482]]] }
+    },
+
+    {
+      "type": "Feature",
+      "properties": { "name": "Quận Bình Thạnh", "level": "district", "admin_level": 6, "parent": "TP. Hồ Chí Minh", "code": "765" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.7887],[106.7250,10.7887],[106.7250,10.8200],[106.6893,10.8200],[106.6893,10.7887]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 1", "level": "ward", "admin_level": 8, "parent": "Quận Bình Thạnh", "code": "26869" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.7050,10.8050],[106.7250,10.8050],[106.7250,10.8200],[106.7050,10.8200],[106.7050,10.8050]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 13", "level": "ward", "admin_level": 8, "parent": "Quận Bình Thạnh", "code": "26872" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.7050,10.7887],[106.7250,10.7887],[106.7250,10.8050],[106.7050,10.8050],[106.7050,10.8050]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 25", "level": "ward", "admin_level": 8, "parent": "Quận Bình Thạnh", "code": "26875" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.7887],[106.7050,10.7887],[106.7050,10.8050],[106.6893,10.8050],[106.6893,10.7887]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 26", "level": "ward", "admin_level": 8, "parent": "Quận Bình Thạnh", "code": "26878" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6893,10.8050],[106.7050,10.8050],[106.7050,10.8200],[106.6893,10.8200],[106.6893,10.8050]]] }
+    },
+
+    {
+      "type": "Feature",
+      "properties": { "name": "Quận Phú Nhuận", "level": "district", "admin_level": 6, "parent": "TP. Hồ Chí Minh", "code": "778" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6640,10.7887],[106.6893,10.7887],[106.6893,10.8100],[106.6640,10.8100],[106.6640,10.7887]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 1", "level": "ward", "admin_level": 8, "parent": "Quận Phú Nhuận", "code": "27208" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6760,10.7980],[106.6893,10.7980],[106.6893,10.8100],[106.6760,10.8100],[106.6760,10.7980]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 7", "level": "ward", "admin_level": 8, "parent": "Quận Phú Nhuận", "code": "27211" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6760,10.7887],[106.6893,10.7887],[106.6893,10.7980],[106.6760,10.7980],[106.6760,10.7887]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 13", "level": "ward", "admin_level": 8, "parent": "Quận Phú Nhuận", "code": "27214" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6640,10.7887],[106.6760,10.7887],[106.6760,10.8100],[106.6640,10.8100],[106.6640,10.7887]]] }
+    },
+
+    {
+      "type": "Feature",
+      "properties": { "name": "Quận Tân Bình", "level": "district", "admin_level": 6, "parent": "TP. Hồ Chí Minh", "code": "764" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6350,10.7887],[106.6640,10.7887],[106.6640,10.8200],[106.6350,10.8200],[106.6350,10.7887]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 1", "level": "ward", "admin_level": 8, "parent": "Quận Tân Bình", "code": "27349" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6350,10.8050],[106.6640,10.8050],[106.6640,10.8200],[106.6350,10.8200],[106.6350,10.8050]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường 4", "level": "ward", "admin_level": 8, "parent": "Quận Tân Bình", "code": "27352" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6350,10.7887],[106.6640,10.7887],[106.6640,10.8050],[106.6350,10.8050],[106.6350,10.7887]]] }
+    },
+
+    {
+      "type": "Feature",
+      "properties": { "name": "Quận 7", "level": "district", "admin_level": 6, "parent": "TP. Hồ Chí Minh", "code": "775" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6970,10.7100],[106.7400,10.7100],[106.7400,10.7482],[106.6970,10.7482],[106.6970,10.7100]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Tân Phong", "level": "ward", "admin_level": 8, "parent": "Quận 7", "code": "27157" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6970,10.7290],[106.7200,10.7290],[106.7200,10.7482],[106.6970,10.7482],[106.6970,10.7290]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Tân Hưng", "level": "ward", "admin_level": 8, "parent": "Quận 7", "code": "27160" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.6970,10.7100],[106.7200,10.7100],[106.7200,10.7290],[106.6970,10.7290],[106.6970,10.7100]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Phường Phú Mỹ", "level": "ward", "admin_level": 8, "parent": "Quận 7", "code": "27163" },
+      "geometry": { "type": "Polygon", "coordinates": [[[106.7200,10.7100],[106.7400,10.7100],[106.7400,10.7482],[106.7200,10.7482],[106.7200,10.7100]]] }
+    }
+  ]
+}

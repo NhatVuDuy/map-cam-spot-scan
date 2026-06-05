@@ -9,6 +9,7 @@ const useScanStore = create((set, get) => ({
   source: { id: "overpass", config: {} },
   area: { lat: 10.7726, lng: 106.677, radiusM: 1000 },
   categories: DEFAULT_CATEGORIES,
+  boundary: null,       // GeoJSON Feature (Polygon) khi scan theo ranh giới hành chính
 
   // --- Results ---
   points: [],
@@ -28,14 +29,15 @@ const useScanStore = create((set, get) => ({
   setSource: (source) => set({ source }),
   setArea: (area) => set({ area: { ...get().area, ...area } }),
   setCategories: (categories) => set({ categories }),
+  setBoundary: (boundary) => set({ boundary }),
 
   runScan: async () => {
-    const { area, categories } = get();
+    const { area, categories, boundary } = get();
     set({ loading: true, error: null, progress: "Đang khởi động...", points: [], roads: [], selectedPoint: null });
 
     try {
       const result = await browserScan(
-        { area, categories, options: { maxResults: 500, includeRoads: true } },
+        { area, categories, boundary, options: { maxResults: 500, includeRoads: true } },
         (msg) => set({ progress: msg })
       );
 
@@ -49,11 +51,7 @@ const useScanStore = create((set, get) => ({
         error: null,
       });
     } catch (err) {
-      set({
-        loading: false,
-        progress: "",
-        error: err.message || "Quét thất bại",
-      });
+      set({ loading: false, progress: "", error: err.message || "Quét thất bại" });
     }
   },
 

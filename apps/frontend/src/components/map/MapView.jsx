@@ -54,6 +54,7 @@ function MapViewInner() {
   const bbox          = useScanStore((s) => s.bbox);
   const filter        = useScanStore((s) => s.filter);
   const selectedPoint = useScanStore((s) => s.selectedPoint);
+  const boundary      = useScanStore((s) => s.boundary);
   const setArea       = useScanStore((s) => s.setArea);
 
   // ── 1. Init map ─────────────────────────────────────────────────────────────
@@ -87,6 +88,11 @@ function MapViewInner() {
       map.addSource("radius", { type: "geojson", data: circleGeoJSON(area.lat, area.lng, area.radiusM) });
       map.addLayer({ id: "radius-fill", type: "fill",   source: "radius", paint: { "fill-color": "#38BDF8", "fill-opacity": 0.12 } });
       map.addLayer({ id: "radius-line", type: "line",   source: "radius", paint: { "line-color": "#38BDF8", "line-width": 2.5, "line-opacity": 0.9 } });
+
+      // ── Boundary polygon (hành chính) ──────────────────────────────────────
+      map.addSource("boundary", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({ id: "boundary-fill", type: "fill", source: "boundary", paint: { "fill-color": "#A78BFA", "fill-opacity": 0.12 } });
+      map.addLayer({ id: "boundary-line", type: "line", source: "boundary", paint: { "line-color": "#A78BFA", "line-width": 2.5, "line-dasharray": [1, 0] } });
 
       // ── Roads ──────────────────────────────────────────────────────────────
       map.addSource("roads", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -209,6 +215,39 @@ function MapViewInner() {
       markerRef.current.setLngLat([area.lng, area.lat]);
     }
   }, [mapReady, area.lat, area.lng, area.radiusM]);
+
+  // ── 2b. Sync boundary polygon — show polygon, hide radius circle ──────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+
+    if (boundary?.geometry) {
+      // Show polygon
+      map.getSource("boundary")?.setData(boundary);
+      map.setLayoutProperty("boundary-fill", "visibility", "visible");
+      map.setLayoutProperty("boundary-line", "visibility", "visible");
+      // Hide radius (polygon is the authoritative boundary)
+      map.setLayoutProperty("radius-fill", "visibility", "none");
+      map.setLayoutProperty("radius-line", "visibility", "none");
+      // Fly to boundary
+      const coords = boundary.geometry.type === "Polygon"
+        ? boundary.geometry.coordinates[0]
+        : boundary.geometry.coordinates[0][0];
+      const lngs = coords.map(([lng]) => lng);
+      const lats = coords.map(([, lat]) => lat);
+      map.fitBounds(
+        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+        { padding: 60, maxZoom: 16, duration: 700 }
+      );
+    } else {
+      // Clear polygon, show radius again
+      map.getSource("boundary")?.setData({ type: "FeatureCollection", features: [] });
+      map.setLayoutProperty("boundary-fill", "visibility", "none");
+      map.setLayoutProperty("boundary-line", "visibility", "none");
+      map.setLayoutProperty("radius-fill", "visibility", "visible");
+      map.setLayoutProperty("radius-line", "visibility", "visible");
+    }
+  }, [mapReady, boundary]);
 
   // ── 3. Update roads ─────────────────────────────────────────────────────────
   useEffect(() => {

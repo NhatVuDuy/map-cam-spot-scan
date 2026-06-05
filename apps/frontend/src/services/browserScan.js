@@ -2,6 +2,7 @@ import { getBBox } from "../utils/geo.js";
 import { classifyTags } from "../algorithms/classifier.js";
 import { detectIntersections } from "../algorithms/intersection.js";
 import { withinRadius, deduplicatePoints, scorePoints } from "../algorithms/spatialFilter.js";
+import { pointInPolygon, geometryBBox } from "../utils/pointInPolygon.js";
 
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
@@ -117,36 +118,63 @@ function normalizeElements(elements, center, radiusM, categories) {
   return { poiPoints, ways };
 }
 
-export async function browserScan({ area, categories, options = {} }, onProgress) {
+export async function browserScan({ area, categories, boundary = null, options = {} }, onProgress) {
   const { lat, lng, radiusM } = area;
   const { maxResults = 500, includeRoads = true } = options;
   const center = { lat, lng };
   const t0 = Date.now();
+  const useBoundary = !!(boundary?.geometry);
 
   onProgress?.("Tính toán vùng quét...");
-  const bbox = getBBox(lat, lng, radiusM);
+
+  // If boundary polygon provided: use its bbox for Overpass (superset), filter with PIP after
+  let bbox, overpassBbox;
+  if (useBoundary) {
+    const [minLng, minLat, maxLng, maxLat] = geometryBBox(boundary.geometry);
+    bbox = [minLat, minLng, maxLat, maxLng]; // [s, w, n, e] for our meta
+    overpassBbox = bbox;
+  } else {
+    bbox = getBBox(lat, lng, radiusM);
+    overpassBbox = bbox;
+  }
 
   onProgress?.("Gửi truy vấn đến Overpass API...");
-  const query = buildOverpassQuery(bbox, categories, includeRoads);
+  const query = buildOverpassQuery(overpassBbox, categories, includeRoads);
   const data = await fetchOverpass(query);
 
   onProgress?.("Xử lý dữ liệu OSM...");
   const { poiPoints, ways } = normalizeElements(data.elements || [], center, radiusM, categories);
 
-  // Spatial filter + dedup
-  let points = withinRadius(poiPoints, center, radiusM);
+  // Spatial filter: polygon PIP (exact) OR radius (approximate)
+  let points;
+  if (useBoundary) {
+    onProgress?.("Lọc theo ranh giới hành chính...");
+    points = poiPoints.filter((p) => pointInPolygon([p.lng, p.lat], boundary.geometry));
+    // Add distanceM from center for display
+    points = points.map((p) => {
+      const dLat = (p.lat - center.lat) * 111320;
+      const dLng = (p.lng - center.lng) * 111320 * Math.cos(center.lat * Math.PI / 180);
+      return { ...p, distanceM: Math.round(Math.sqrt(dLat * dLat + dLng * dLng)) };
+    });
+  } else {
+    points = withinRadius(poiPoints, center, radiusM);
+  }
+
   points = deduplicatePoints(points);
 
   // Intersection detection
   if (categories.includes("intersection") && ways.length > 0) {
     onProgress?.("Phát hiện giao lộ...");
-    const intersections = detectIntersections(ways, center, radiusM);
+    const filterFn = useBoundary
+      ? (p) => pointInPolygon([p.lng, p.lat], boundary.geometry)
+      : (p) => p.distanceM <= radiusM;
+    const intersections = detectIntersections(ways, center, useBoundary ? 999_999 : radiusM)
+      .filter(filterFn);
     points = deduplicatePoints([...points, ...intersections]);
   }
 
   points = scorePoints(points, center).slice(0, maxResults);
 
-  // Normalize road geometries for map rendering
   const roads = includeRoads
     ? ways.map((w) => ({
         id: `osm-way-${w.id}`,
@@ -155,13 +183,13 @@ export async function browserScan({ area, categories, options = {} }, onProgress
       }))
     : [];
 
-  // Stats
   const byCategory = {};
   for (const p of points) byCategory[p.category] = (byCategory[p.category] || 0) + 1;
 
   return {
     meta: {
-      source: "overpass-browser",
+      source: useBoundary ? "overpass-boundary" : "overpass-browser",
+      boundaryName: boundary?.properties?.name,
       durationMs: Date.now() - t0,
       bbox,
       totalFound: points.length,
