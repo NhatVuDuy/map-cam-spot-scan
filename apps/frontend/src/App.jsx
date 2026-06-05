@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter as BrowserRouter, Routes, Route } from "react-router-dom";
 import Scanner from "./pages/Scanner.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
