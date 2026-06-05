@@ -6,6 +6,19 @@ Format: [Semantic Versioning](https://semver.org) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [1.3.0] — 2026-06-05
+
+### Fixed
+- **Intersection detection** (ngã ba/ngã tư không hiện): tách Overpass query thành 2 block — POIs dùng `out center tags`, roads dùng `out geom tags` để có đủ tọa độ node cho node-sharing algorithm
+- Thêm `living_street` và `service` vào `HIGHWAY_TYPES` để phát hiện đầu hẻm
+- **Missing modules**: tạo mới `algorithms/classifier.js`, `algorithms/intersection.js`, `algorithms/spatialFilter.js`, `utils/pointInPolygon.js` — các module này bị thiếu trong build khiến intersection detection không chạy được
+
+### Changed
+- **Dữ liệu ranh giới HCM thực tế**: thay dummy GeoJSON tự tạo bằng dữ liệu từ `daohoangson/dvhcvn` — 22 đơn vị hành chính (quận + huyện) với polygon WGS84 chính xác
+- Thêm script `scripts/fetch-hcm-boundaries.mjs` để cập nhật GeoJSON khi có dữ liệu mới
+
+---
+
 ## [1.2.0] — 2026-06-05
 
 ### Added
