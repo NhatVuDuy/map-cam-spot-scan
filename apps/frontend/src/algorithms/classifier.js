@@ -12,7 +12,7 @@ const OSM_MAP = {
   shop: { supermarket: "market", mall: "market" },
 };
 
-const VN_NAME_PATTERNS = [
+const VN_PATTERNS = [
   { pattern: /trường|đại học|học viện|cao đẳng/i, category: "school" },
   { pattern: /bệnh viện|phòng khám|y tế/i, category: "hospital" },
   { pattern: /chợ|siêu thị|co\.?op|vinmart/i, category: "market" },
@@ -22,12 +22,14 @@ const VN_NAME_PATTERNS = [
   { pattern: /hội nghị|trung tâm hội|convention/i, category: "conference" },
 ];
 
-export function classifyTags(tags = {}) {
-  for (const [key, mapping] of Object.entries(OSM_MAP)) {
-    if (tags[key] && mapping[tags[key]]) return mapping[tags[key]];
+export function classifyTags(tags) {
+  if (!tags) return null;
+  for (const [key, map] of Object.entries(OSM_MAP)) {
+    const val = tags[key];
+    if (val && map[val]) return map[val];
   }
-  const name = tags.name || tags["name:vi"] || "";
-  for (const { pattern, category } of VN_NAME_PATTERNS) {
+  const name = tags.name || tags["name:vi"] || tags["name:en"] || "";
+  for (const { pattern, category } of VN_PATTERNS) {
     if (pattern.test(name)) return category;
   }
   return null;
