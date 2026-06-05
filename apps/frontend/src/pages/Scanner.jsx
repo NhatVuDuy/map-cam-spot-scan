@@ -4,6 +4,11 @@ import Sidebar from "../components/layout/Sidebar.jsx";
 import RightPanel from "../components/layout/RightPanel.jsx";
 import MapView from "../components/map/MapView.jsx";
 
+const C = {
+  bg: "#060d1a", border: "#1e3354", muted: "#475569",
+  cyan: "#38BDF8", violet: "#A78BFA",
+};
+
 function useMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth <= 768);
   useEffect(() => {
@@ -14,71 +19,69 @@ function useMobile() {
   return mobile;
 }
 
-const C = { bg: "#060d1a", border: "#1e3354", text: "#e2e8f0", muted: "#475569", cyan: "#38BDF8", violet: "#A78BFA" };
-
-function MobileTabBar({ tab, setTab }) {
-  const tabs = [
-    { id: "settings", icon: "⚙️", label: "Cài đặt" },
-    { id: "map",      icon: "🗺",  label: "Bản đồ" },
-    { id: "results",  icon: "📋", label: "Kết quả" },
-  ];
+/* Floating pill button that appears on the map edge when a panel is hidden */
+function FloatToggle({ side, icon, label, onClick }) {
+  const isLeft = side === "left";
   return (
-    <div style={{
-      display: "flex", borderTop: `1px solid ${C.border}`,
-      background: "#0a1628", flexShrink: 0,
-    }}>
-      {tabs.map(t => (
-        <button key={t.id} onClick={() => setTab(t.id)} style={{
-          flex: 1, padding: "0.6rem 0", border: "none", background: "transparent",
-          borderTop: `2px solid ${tab === t.id ? C.cyan : "transparent"}`,
-          color: tab === t.id ? C.cyan : C.muted,
-          fontSize: "0.7rem", fontWeight: tab === t.id ? 700 : 400,
-          cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
-        }}>
-          <span style={{ fontSize: "1.1rem" }}>{t.icon}</span>
-          <span>{t.label}</span>
-        </button>
-      ))}
-    </div>
+    <button
+      onClick={onClick}
+      title={label}
+      style={{
+        position: "absolute",
+        top: "50%",
+        [isLeft ? "left" : "right"]: 0,
+        transform: "translateY(-50%)",
+        zIndex: 20,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "4px",
+        width: "28px",
+        padding: "14px 0",
+        background: "rgba(10,22,40,0.92)",
+        border: `1px solid ${C.border}`,
+        [isLeft ? "borderLeft" : "borderRight"]: "none",
+        borderRadius: isLeft ? "0 8px 8px 0" : "8px 0 0 8px",
+        color: C.cyan,
+        cursor: "pointer",
+        backdropFilter: "blur(4px)",
+        boxShadow: isLeft
+          ? "2px 0 12px rgba(0,0,0,0.4)"
+          : "-2px 0 12px rgba(0,0,0,0.4)",
+        writingMode: "vertical-rl",
+        fontSize: "0.62rem",
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ writingMode: "horizontal-tb", fontSize: "0.9rem" }}>
+        {isLeft ? "›" : "‹"}
+      </span>
+      <span style={{ fontSize: "0.58rem", color: C.muted, writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
+        {label}
+      </span>
+    </button>
   );
 }
 
 export default function Scanner() {
   const mobile = useMobile();
-  const [mobileTab, setMobileTab] = useState("map");
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
 
-  if (mobile) {
-    return (
-      <div style={{
-        display: "flex", flexDirection: "column",
-        height: "100vh", width: "100vw",
-        overflow: "hidden", background: C.bg,
-      }}>
-        <Header />
-        <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
-          {/* Map always rendered (keeps state), hidden visually when not active */}
-          <div style={{
-            position: "absolute", inset: 0,
-            visibility: mobileTab === "map" ? "visible" : "hidden",
-            pointerEvents: mobileTab === "map" ? "auto" : "none",
-          }}>
-            <MapView />
-          </div>
-          {mobileTab === "settings" && (
-            <div style={{ position: "absolute", inset: 0, overflowY: "auto", background: "#0f172a" }}>
-              <Sidebar fullscreen />
-            </div>
-          )}
-          {mobileTab === "results" && (
-            <div style={{ position: "absolute", inset: 0, overflowY: "auto", background: "#0a1628" }}>
-              <RightPanel fullscreen />
-            </div>
-          )}
-        </div>
-        <MobileTabBar tab={mobileTab} setTab={setMobileTab} />
-      </div>
-    );
-  }
+  const openLeft = () => {
+    if (mobile && !leftOpen) setRightOpen(false);
+    setLeftOpen(true);
+  };
+  const closeLeft = () => setLeftOpen(false);
+
+  const openRight = () => {
+    if (mobile && !rightOpen) setLeftOpen(false);
+    setRightOpen(true);
+  };
+  const closeRight = () => setRightOpen(false);
 
   return (
     <div style={{
@@ -87,12 +90,32 @@ export default function Scanner() {
       overflow: "hidden", background: C.bg,
     }}>
       <Header />
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <Sidebar />
-        <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
+
+        {/* ── Left panel ──────────────────────────────────────────────────── */}
+        {leftOpen && (
+          <Sidebar onCollapse={closeLeft} />
+        )}
+
+        {/* ── Map center ──────────────────────────────────────────────────── */}
+        <div style={{ flex: 1, position: "relative", minWidth: 0, overflow: "hidden" }}>
           <MapView />
+
+          {/* Float toggle buttons appear on map when panels are hidden */}
+          {!leftOpen && (
+            <FloatToggle side="left" icon="⚙" label="Cài đặt" onClick={openLeft} />
+          )}
+          {!rightOpen && (
+            <FloatToggle side="right" icon="📋" label="Kết quả" onClick={openRight} />
+          )}
         </div>
-        <RightPanel />
+
+        {/* ── Right panel ─────────────────────────────────────────────────── */}
+        {rightOpen && (
+          <RightPanel onCollapse={closeRight} />
+        )}
+
       </div>
     </div>
   );
