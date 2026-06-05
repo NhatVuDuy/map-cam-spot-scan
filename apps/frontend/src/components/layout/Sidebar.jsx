@@ -113,6 +113,32 @@ function QueryCategories() {
   );
 }
 
+/* ─── max results control ─────────────────────────────────────────────────── */
+const PRESETS = [200, 500, 1000, 2000];
+
+function MaxResultsControl() {
+  const { maxResults, setMaxResults } = useScanner();
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.3rem" }}>
+        <SectionLabel>Giới hạn kết quả</SectionLabel>
+        <span style={{ fontSize: "0.68rem", color: C.cyan, fontWeight: 700 }}>{maxResults.toLocaleString()}</span>
+      </div>
+      <div style={{ display: "flex", gap: "0.25rem" }}>
+        {PRESETS.map(v => (
+          <button key={v} onClick={() => setMaxResults(v)} style={{
+            flex: 1, padding: "3px 0", fontSize: "0.62rem",
+            background: maxResults === v ? `${C.cyan}22` : "none",
+            border: `1px solid ${maxResults === v ? C.cyan : C.border}`,
+            color: maxResults === v ? C.cyan : C.muted,
+            borderRadius: "4px", cursor: "pointer",
+          }}>{v >= 1000 ? `${v/1000}k` : v}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── main sidebar ────────────────────────────────────────────────────────── */
 export default function Sidebar({ fullscreen = false }) {
   const [mode, setMode] = useState("radius"); // "boundary" | "radius"
@@ -212,6 +238,11 @@ export default function Sidebar({ fullscreen = false }) {
       }}>
         <SectionLabel>Loại địa điểm cần quét</SectionLabel>
         <QueryCategories />
+      </div>
+
+      {/* ── max results ─────────────────────────────────────────────────── */}
+      <div style={{ padding: "0.45rem 0.75rem", borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <MaxResultsControl />
       </div>
 
       {/* ── scan button ─────────────────────────────────────────────────── */}

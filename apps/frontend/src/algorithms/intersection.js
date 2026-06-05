@@ -1,14 +1,9 @@
 import { haversine } from "../utils/geo.js";
 
-const MAX_RESULTS = 500;
-
 /**
  * Detect road intersections using node-sharing algorithm.
  * Requires ways with full geometry (from Overpass "out geom tags").
- *
- * @param {Array<{id: number, geometry: Array<{lat:number,lon:number}>, highway: string}>} ways
- * @param {{ lat: number, lng: number }} center
- * @param {number} radiusM
+ * Returns ALL intersections sorted by wayCount desc — caller applies the cap.
  */
 export function detectIntersections(ways, center, radiusM) {
   const nodeMap = new Map();
@@ -46,9 +41,8 @@ export function detectIntersections(ways, center, radiusM) {
       source: "algorithm",
       tags: { highway: "intersection" },
     });
-
-    if (results.length >= MAX_RESULTS) break;
   }
 
-  return results;
+  // Sort by importance before returning so callers can safely slice
+  return results.sort((a, b) => b.wayCount - a.wayCount || a.distanceM - b.distanceM);
 }

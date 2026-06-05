@@ -49,7 +49,7 @@ function buildOverpassQuery(bbox, categories, includeRoads) {
     }
   }
 
-  const parts = [`[out:json][timeout:50];`];
+  const parts = [`[out:json][timeout:90];`];
 
   if (tagFilters.length > 0) {
     parts.push(`(\n  ${tagFilters.join("\n  ")}\n)->.pois;\n.pois out center tags;`);
@@ -71,7 +71,7 @@ async function fetchOverpass(query) {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(100_000),
       });
       if (!res.ok) continue;
       return await res.json();
@@ -175,7 +175,9 @@ export async function browserScan({ area, categories, boundary = null, options =
     points = deduplicatePoints([...points, ...filtered]);
   }
 
-  points = scorePoints(points, center).slice(0, maxResults);
+  const allScoredPoints = scorePoints(points, center);
+  const totalBeforeCap = allScoredPoints.length;
+  points = allScoredPoints.slice(0, maxResults);
 
   const roads = includeRoads
     ? ways.map((w) => ({
@@ -195,6 +197,7 @@ export async function browserScan({ area, categories, boundary = null, options =
       durationMs: Date.now() - t0,
       bbox,
       totalFound: points.length,
+      totalBeforeCap,
       byCategory,
     },
     points,

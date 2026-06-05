@@ -9,7 +9,8 @@ const useScanStore = create((set, get) => ({
   source: { id: "overpass", config: {} },
   area: { lat: 10.7726, lng: 106.677, radiusM: 1000 },
   categories: DEFAULT_CATEGORIES,
-  boundary: null,       // GeoJSON Feature (Polygon) khi scan theo ranh giới hành chính
+  boundary: null,
+  maxResults: 500,
 
   // --- Results ---
   points: [],
@@ -30,14 +31,15 @@ const useScanStore = create((set, get) => ({
   setArea: (area) => set({ area: { ...get().area, ...area } }),
   setCategories: (categories) => set({ categories }),
   setBoundary: (boundary) => set({ boundary }),
+  setMaxResults: (maxResults) => set({ maxResults: Number(maxResults) }),
 
   runScan: async () => {
-    const { area, categories, boundary } = get();
+    const { area, categories, boundary, maxResults } = get();
     set({ loading: true, error: null, progress: "Đang khởi động...", points: [], roads: [], selectedPoint: null });
 
     try {
       const result = await browserScan(
-        { area, categories, boundary, options: { maxResults: 500, includeRoads: true } },
+        { area, categories, boundary, options: { maxResults, includeRoads: true } },
         (msg) => set({ progress: msg })
       );
 
@@ -47,7 +49,14 @@ const useScanStore = create((set, get) => ({
         bbox: result.meta?.bbox || null,
         stats: result.meta?.byCategory || {},
         loading: false,
-        progress: `Tìm thấy ${result.meta?.totalFound || 0} địa điểm (${result.meta?.durationMs}ms)`,
+        progress: (() => {
+          const found = result.meta?.totalFound || 0;
+          const total = result.meta?.totalBeforeCap || found;
+          const ms = result.meta?.durationMs;
+          return total > found
+            ? `Hiển thị ${found}/${total} địa điểm (${ms}ms) — tăng giới hạn để xem thêm`
+            : `Tìm thấy ${found} địa điểm (${ms}ms)`;
+        })(),
         error: null,
       });
     } catch (err) {
