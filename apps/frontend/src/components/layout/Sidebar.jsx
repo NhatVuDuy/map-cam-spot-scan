@@ -140,7 +140,7 @@ function MaxResultsControl() {
 }
 
 /* ─── main sidebar ────────────────────────────────────────────────────────── */
-export default function Sidebar({ fullscreen = false }) {
+export default function Sidebar({ fullscreen = false, onCollapse }) {
   const [mode, setMode] = useState("radius"); // "boundary" | "radius"
   const boundary  = useScanStore((s) => s.boundary);
   const setBoundary = useScanStore((s) => s.setBoundary);
@@ -161,10 +161,18 @@ export default function Sidebar({ fullscreen = false }) {
       minHeight: fullscreen ? "100%" : undefined,
     }}>
 
-      {/* ── mode toggle ─────────────────────────────────────────────────── */}
+      {/* ── mode toggle + collapse button ───────────────────────────────── */}
       <div style={{ background: C.bg2, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <div style={{ padding: "0.65rem 0.75rem 0.4rem", fontSize: "0.65rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          Chế độ quét
+        <div style={{ display: "flex", alignItems: "center", padding: "0.5rem 0.75rem 0.25rem" }}>
+          <span style={{ flex: 1, fontSize: "0.65rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            Chế độ quét
+          </span>
+          {onCollapse && (
+            <button onClick={onCollapse} title="Thu nhỏ" style={{
+              background: "none", border: "none", color: C.muted, cursor: "pointer",
+              fontSize: "1.1rem", lineHeight: 1, padding: "0 2px",
+            }}>‹</button>
+          )}
         </div>
         <div style={{ display: "flex" }}>
           <ModeTab label="Địa giới HC" icon="🗺" active={mode === "boundary" ? "boundary" : false} onClick={() => switchMode("boundary")} />

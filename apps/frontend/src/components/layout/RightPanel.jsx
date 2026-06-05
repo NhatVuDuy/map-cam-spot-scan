@@ -281,7 +281,7 @@ function ResultsList() {
 }
 
 /* ─── right panel ─────────────────────────────────────────────────────────── */
-export default function RightPanel({ fullscreen = false }) {
+export default function RightPanel({ fullscreen = false, onCollapse }) {
   const { points, stats, loading } = useScanner();
   const [tab, setTab] = useState("results"); // "results" | "stats"
 
@@ -302,12 +302,19 @@ export default function RightPanel({ fullscreen = false }) {
       minHeight: fullscreen ? "100%" : undefined,
     }}>
 
-      {/* ── tab bar ─────────────────────────────────────────────────────── */}
+      {/* ── tab bar + collapse button ────────────────────────────────────── */}
       <div style={{
         display: "flex", background: C.bg2,
         borderBottom: `1px solid ${C.border}`,
-        flexShrink: 0,
+        flexShrink: 0, alignItems: "stretch",
       }}>
+        {onCollapse && (
+          <button onClick={onCollapse} title="Thu nhỏ" style={{
+            background: "none", border: "none", borderRight: `1px solid ${C.border}`,
+            color: C.muted, cursor: "pointer", fontSize: "1.1rem",
+            padding: "0 10px", flexShrink: 0,
+          }}>›</button>
+        )}
         {[
           { key: "results",    label: "Kết quả", icon: "📋" },
           { key: "stats",      label: "Thống kê", icon: "📊" },
