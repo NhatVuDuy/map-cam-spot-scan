@@ -159,19 +159,18 @@ export default function Sidebar({ fullscreen = false, onCollapse }) {
       overflow: "hidden",
       height: fullscreen ? "auto" : "100%",
       minHeight: fullscreen ? "100%" : undefined,
-      position: "relative",
     }}>
 
       {/* ── mode toggle + collapse button ───────────────────────────────── */}
       <div style={{ background: C.bg2, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", padding: "0.5rem 0.75rem 0.25rem" }}>
-          <div style={{ flex: 1, fontSize: "0.65rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          <span style={{ flex: 1, fontSize: "0.65rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
             Chế độ quét
-          </div>
+          </span>
           {onCollapse && (
             <button onClick={onCollapse} title="Thu nhỏ" style={{
               background: "none", border: "none", color: C.muted, cursor: "pointer",
-              fontSize: "1rem", lineHeight: 1, padding: "2px 4px", borderRadius: "4px",
+              fontSize: "1.1rem", lineHeight: 1, padding: "0 2px",
             }}>‹</button>
           )}
         </div>

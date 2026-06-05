@@ -20,7 +20,7 @@ function useMobile() {
 }
 
 /* Floating pill button that appears on the map edge when a panel is hidden */
-function FloatToggle({ side, icon, label, onClick }) {
+function FloatToggle({ side, label, onClick }) {
   const isLeft = side === "left";
   return (
     <button
@@ -36,52 +36,40 @@ function FloatToggle({ side, icon, label, onClick }) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "4px",
+        gap: "6px",
         width: "28px",
-        padding: "14px 0",
-        background: "rgba(10,22,40,0.92)",
+        padding: "16px 0",
+        background: "rgba(10,22,40,0.9)",
         border: `1px solid ${C.border}`,
         [isLeft ? "borderLeft" : "borderRight"]: "none",
         borderRadius: isLeft ? "0 8px 8px 0" : "8px 0 0 8px",
         color: C.cyan,
         cursor: "pointer",
         backdropFilter: "blur(4px)",
-        boxShadow: isLeft
-          ? "2px 0 12px rgba(0,0,0,0.4)"
-          : "-2px 0 12px rgba(0,0,0,0.4)",
-        writingMode: "vertical-rl",
-        fontSize: "0.62rem",
-        fontWeight: 700,
-        letterSpacing: "0.06em",
-        whiteSpace: "nowrap",
+        boxShadow: isLeft ? "2px 0 12px rgba(0,0,0,0.5)" : "-2px 0 12px rgba(0,0,0,0.5)",
       }}
     >
-      <span style={{ writingMode: "horizontal-tb", fontSize: "0.9rem" }}>
-        {isLeft ? "›" : "‹"}
-      </span>
-      <span style={{ fontSize: "0.58rem", color: C.muted, writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
-        {label}
-      </span>
+      <span style={{ fontSize: "0.9rem", lineHeight: 1 }}>{isLeft ? "›" : "‹"}</span>
+      {label.split("").map((ch, i) => (
+        <span key={i} style={{ fontSize: "0.52rem", color: C.muted, lineHeight: 1.2 }}>{ch}</span>
+      ))}
     </button>
   );
 }
 
 export default function Scanner() {
   const mobile = useMobile();
-  const [leftOpen, setLeftOpen] = useState(true);
+  const [leftOpen, setLeftOpen]   = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
 
   const openLeft = () => {
-    if (mobile && !leftOpen) setRightOpen(false);
+    if (mobile) setRightOpen(false);
     setLeftOpen(true);
   };
-  const closeLeft = () => setLeftOpen(false);
-
   const openRight = () => {
-    if (mobile && !rightOpen) setLeftOpen(false);
+    if (mobile) setLeftOpen(false);
     setRightOpen(true);
   };
-  const closeRight = () => setRightOpen(false);
 
   return (
     <div style={{
@@ -91,30 +79,24 @@ export default function Scanner() {
     }}>
       <Header />
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
         {/* ── Left panel ──────────────────────────────────────────────────── */}
-        {leftOpen && (
-          <Sidebar onCollapse={closeLeft} />
-        )}
+        {leftOpen && <Sidebar onCollapse={() => setLeftOpen(false)} />}
 
         {/* ── Map center ──────────────────────────────────────────────────── */}
         <div style={{ flex: 1, position: "relative", minWidth: 0, overflow: "hidden" }}>
           <MapView />
-
-          {/* Float toggle buttons appear on map when panels are hidden */}
           {!leftOpen && (
-            <FloatToggle side="left" icon="⚙" label="Cài đặt" onClick={openLeft} />
+            <FloatToggle side="left" label="Cài đặt" onClick={openLeft} />
           )}
           {!rightOpen && (
-            <FloatToggle side="right" icon="📋" label="Kết quả" onClick={openRight} />
+            <FloatToggle side="right" label="Kết quả" onClick={openRight} />
           )}
         </div>
 
         {/* ── Right panel ─────────────────────────────────────────────────── */}
-        {rightOpen && (
-          <RightPanel onCollapse={closeRight} />
-        )}
+        {rightOpen && <RightPanel onCollapse={() => setRightOpen(false)} />}
 
       </div>
     </div>

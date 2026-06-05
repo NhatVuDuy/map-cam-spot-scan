@@ -311,7 +311,7 @@ export default function RightPanel({ fullscreen = false, onCollapse }) {
         {onCollapse && (
           <button onClick={onCollapse} title="Thu nhỏ" style={{
             background: "none", border: "none", borderRight: `1px solid ${C.border}`,
-            color: C.muted, cursor: "pointer", fontSize: "1rem",
+            color: C.muted, cursor: "pointer", fontSize: "1.1rem",
             padding: "0 10px", flexShrink: 0,
           }}>›</button>
         )}
