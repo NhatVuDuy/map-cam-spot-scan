@@ -71,6 +71,67 @@ function MiniBar({ label, value, max, color, total }) {
   );
 }
 
+/* ─── result legend (filter by category in results) ──────────────────────── */
+function ResultLegend() {
+  const { stats, filter, setFilter, points } = useScanner();
+  const allKeys = Object.keys(CATEGORIES);
+  const hasResults = points.length > 0;
+
+  if (!hasResults) {
+    return (
+      <div style={{ padding: "2rem 1rem", textAlign: "center", color: C.muted, fontSize: "0.8rem" }}>
+        Chưa có kết quả scan.<br />
+        <span style={{ fontSize: "0.72rem" }}>Kết quả sẽ hiện ở đây sau khi quét.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "0.6rem 0.85rem" }}>
+      <div style={{ fontSize: "0.67rem", color: C.muted, marginBottom: "0.75rem", lineHeight: 1.5 }}>
+        Click vào loại để lọc danh sách kết quả.
+        {filter && (
+          <button onClick={() => setFilter(null)} style={{
+            marginLeft: "0.5rem", fontSize: "0.62rem", padding: "1px 7px",
+            background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`,
+            borderRadius: "100px", color: C.cyan, cursor: "pointer",
+          }}>✕ Bỏ lọc</button>
+        )}
+      </div>
+      {allKeys.map((key) => {
+        const cat = CATEGORIES[key];
+        const count = stats[key] || 0;
+        if (!count) return null;
+        const isActive = filter === key;
+        return (
+          <div
+            key={key}
+            onClick={() => setFilter(isActive ? null : key)}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.6rem",
+              padding: "0.45rem 0.6rem", marginBottom: "0.25rem",
+              borderRadius: "7px", cursor: "pointer",
+              background: isActive ? `${cat.color}18` : `${cat.color}07`,
+              border: `1px solid ${isActive ? cat.color + "55" : cat.color + "20"}`,
+              transition: "all 0.15s",
+            }}
+          >
+            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: "0.78rem", color: isActive ? C.text : C.dim, fontWeight: isActive ? 600 : 400 }}>
+              {cat.label}
+            </span>
+            <span style={{
+              fontSize: "0.68rem", padding: "1px 7px",
+              background: `${cat.color}22`, border: `1px solid ${cat.color}44`,
+              borderRadius: "100px", color: cat.color, fontWeight: 700,
+            }}>{count}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─── category filter ─────────────────────────────────────────────────────── */
 function CategoryFilter() {
   const { categories, setCategories, filter, setFilter, stats } = useScanner();
@@ -248,7 +309,7 @@ export default function RightPanel() {
         {[
           { key: "results",    label: "Kết quả", icon: "📋" },
           { key: "stats",      label: "Thống kê", icon: "📊" },
-          { key: "categories", label: "Loại",     icon: "🏷" },
+          { key: "categories", label: "Lọc",       icon: "🏷" },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             flex: 1, padding: "0.55rem 0",
@@ -336,8 +397,8 @@ export default function RightPanel() {
       )}
 
       {tab === "categories" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "0.6rem 0.5rem" }}>
-          <CategoryFilter />
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <ResultLegend />
         </div>
       )}
 

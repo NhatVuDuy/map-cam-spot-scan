@@ -4,7 +4,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import useScanStore from "../../store/scanStore.js";
 import { CATEGORIES } from "../../utils/categories.js";
 import { circleGeoJSON } from "../../utils/geo.js";
-import Legend from "./Legend.jsx";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 
@@ -343,7 +342,6 @@ function MapViewInner() {
     <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       <ReturnBtn onClick={handleReturn} />
-      <Legend />
     </div>
   );
 }
