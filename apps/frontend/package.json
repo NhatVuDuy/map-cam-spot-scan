@@ -1,6 +1,6 @@
 {
   "name": "@camera-scanner/frontend",
-  "version": "1.4.3",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "scripts": {

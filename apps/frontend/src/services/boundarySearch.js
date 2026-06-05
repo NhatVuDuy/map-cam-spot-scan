@@ -8,7 +8,12 @@ export async function loadBoundaries() {
   const res = await fetch("/data/hcm-boundaries.geojson");
   if (!res.ok) throw new Error("Không tải được file ranh giới");
   const fc = await res.json();
-  cachedFeatures = fc.features || [];
+  // Normalise: ensure every feature has a `level` field for display
+  cachedFeatures = (fc.features || []).map((f) => {
+    const p = f.properties;
+    if (!p.level) p.level = p.type === "district" ? "district" : "ward";
+    return f;
+  });
   return cachedFeatures;
 }
 

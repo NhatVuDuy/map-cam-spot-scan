@@ -281,7 +281,7 @@ function ResultsList() {
 }
 
 /* ─── right panel ─────────────────────────────────────────────────────────── */
-export default function RightPanel() {
+export default function RightPanel({ fullscreen = false }) {
   const { points, stats, loading } = useScanner();
   const [tab, setTab] = useState("results"); // "results" | "stats"
 
@@ -293,11 +293,13 @@ export default function RightPanel() {
 
   return (
     <div style={{
-      width: "280px", flexShrink: 0,
+      width: fullscreen ? "100%" : "min(280px, 100vw)", flexShrink: 0,
       background: C.bg,
-      borderLeft: `1px solid ${C.border}`,
+      borderLeft: fullscreen ? "none" : `1px solid ${C.border}`,
       display: "flex", flexDirection: "column",
       overflow: "hidden",
+      height: fullscreen ? "auto" : undefined,
+      minHeight: fullscreen ? "100%" : undefined,
     }}>
 
       {/* ── tab bar ─────────────────────────────────────────────────────── */}

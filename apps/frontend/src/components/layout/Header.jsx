@@ -33,10 +33,10 @@ export default function Header() {
         onMouseEnter={e => e.target.style.color = "#A78BFA"}
         onMouseLeave={e => e.target.style.color = "#64748b"}
       >📐 Arch</button>
-      <button style={S.navBtn} onClick={() => navigate("/")}
+      <button style={S.navBtn} onClick={() => navigate("/info")}
         onMouseEnter={e => e.target.style.color = "#38BDF8"}
         onMouseLeave={e => e.target.style.color = "#64748b"}
-      >← Home</button>
+      >ℹ️ Info</button>
     </header>
   );
 }

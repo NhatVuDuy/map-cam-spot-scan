@@ -114,17 +114,25 @@ function QueryCategories() {
 }
 
 /* ─── main sidebar ────────────────────────────────────────────────────────── */
-export default function Sidebar() {
+export default function Sidebar({ fullscreen = false }) {
   const [mode, setMode] = useState("radius"); // "boundary" | "radius"
-  const boundary = useScanStore((s) => s.boundary);
+  const boundary  = useScanStore((s) => s.boundary);
+  const setBoundary = useScanStore((s) => s.setBoundary);
+
+  const switchMode = (next) => {
+    if (next === "radius" && mode === "boundary") setBoundary(null);
+    setMode(next);
+  };
 
   return (
     <aside style={{
-      width: "250px", flexShrink: 0,
+      width: fullscreen ? "100%" : "min(250px, 100vw)", flexShrink: 0,
       background: C.bg,
-      borderRight: `1px solid ${C.border}`,
+      borderRight: fullscreen ? "none" : `1px solid ${C.border}`,
       display: "flex", flexDirection: "column",
-      overflow: "hidden", height: "100%",
+      overflow: "hidden",
+      height: fullscreen ? "auto" : "100%",
+      minHeight: fullscreen ? "100%" : undefined,
     }}>
 
       {/* ── mode toggle ─────────────────────────────────────────────────── */}
@@ -133,8 +141,8 @@ export default function Sidebar() {
           Chế độ quét
         </div>
         <div style={{ display: "flex" }}>
-          <ModeTab label="Địa giới HC" icon="🗺" active={mode === "boundary" ? "boundary" : false} onClick={() => setMode("boundary")} />
-          <ModeTab label="Điểm & Bán kính" icon="📍" active={mode === "radius" ? "radius" : false} onClick={() => setMode("radius")} />
+          <ModeTab label="Địa giới HC" icon="🗺" active={mode === "boundary" ? "boundary" : false} onClick={() => switchMode("boundary")} />
+          <ModeTab label="Điểm & Bán kính" icon="📍" active={mode === "radius" ? "radius" : false} onClick={() => switchMode("radius")} />
         </div>
       </div>
 
