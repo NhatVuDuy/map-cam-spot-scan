@@ -109,42 +109,55 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
   `;
 }
 
-// ─── Camera SVG icons (pointing north = bearing 0, rotated by icon-rotate) ────
+// ─── Camera icons via canvas ImageData (synchronous, no fetch needed) ────────
 
 const CAM_ICONS = {
-  cam1:  { color: "#38BDF8", label: "CAM1" },
-  cam2:  { color: "#FBBF24", label: "CAM2" },
-  cam22: { color: "#FBBF24", label: "CAM2.2" },
-  cam21: { color: "#FB923C", label: "CAM2.1" },
-  cam23: { color: "#FB923C", label: "CAM2.3" },
+  cam1:  { color: "#38BDF8" },
+  cam2:  { color: "#FBBF24" },
+  cam22: { color: "#FBBF24" },
+  cam21: { color: "#FB923C" },
+  cam23: { color: "#FB923C" },
 };
 
-function buildCamSVG(color) {
-  // Camera icon pointing upward (north). Will be rotated by icon-rotate.
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-    <polygon points="14,2 20,12 8,12" fill="${color}" opacity="0.9"/>
-    <rect x="8" y="12" width="12" height="8" rx="2" fill="${color}"/>
-    <circle cx="14" cy="16" r="2.5" fill="white" opacity="0.8"/>
-  </svg>`;
+function makeCamImageData(color, size = 28) {
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const h = size;
+
+  // Direction arrow (pointing north/up)
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.95;
+  ctx.beginPath();
+  ctx.moveTo(h * 0.5, 1);
+  ctx.lineTo(h * 0.82, h * 0.42);
+  ctx.lineTo(h * 0.18, h * 0.42);
+  ctx.closePath();
+  ctx.fill();
+
+  // Camera body
+  ctx.fillRect(h * 0.22, h * 0.42, h * 0.56, h * 0.42);
+
+  // White lens
+  ctx.fillStyle = "white";
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(h * 0.5, h * 0.65, h * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  return ctx.getImageData(0, 0, size, size);
 }
 
-async function loadCamIcons(map) {
+function loadCamIcons(map) {
   for (const [type, { color }] of Object.entries(CAM_ICONS)) {
-    const svg = buildCamSVG(color);
-    const blob = new Blob([svg], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    await new Promise((resolve) => {
-      map.loadImage(url, (err, img) => {
-        if (!err && img) map.addImage(`cam-icon-${type}`, img);
-        URL.revokeObjectURL(url);
-        resolve();
-      });
-    });
+    try {
+      const img = makeCamImageData(color);
+      map.addImage(`cam-icon-${type}`, { width: img.width, height: img.height, data: img.data });
+    } catch (e) {
+      // icon won't show but map still works
+    }
   }
 }
-
-// Road class → intersection circle radius (px at zoom 14)
-const CLASS_RADIUS = [4, 5, 7, 9, 11, 14]; // index 0-5
 
 // ─── Main map inner ───────────────────────────────────────────────────────────
 
@@ -191,6 +204,7 @@ function MapViewInner() {
       container: containerRef.current,
       style: {
         version: 8,
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
         sources: {
           "osm-tiles": {
             type: "raster",
@@ -209,9 +223,9 @@ function MapViewInner() {
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     map.addControl(new maplibregl.ScaleControl(), "bottom-right");
 
-    map.on("load", async () => {
-      // Load camera SVG icons
-      await loadCamIcons(map);
+    map.on("load", () => {
+      // Load camera icons (synchronous canvas draw)
+      loadCamIcons(map);
 
       // ── Radius circle ──────────────────────────────────────────────────────
       map.addSource("radius", { type: "geojson", data: circleGeoJSON(area.lat, area.lng, area.radiusM) });
