@@ -72,6 +72,53 @@ function MiniBar({ label, value, max, color, total }) {
   );
 }
 
+/* ─── camera type info ────────────────────────────────────────────────────── */
+const CAM_TYPE_META = {
+  cam1:      { label: "CAM1 — Đường dài",       color: "#38BDF8" },
+  cam2:      { label: "CAM2 — Ngã3 + đèn",      color: "#FBBF24" },
+  cam22:     { label: "CAM2.2 — Ngã4 + đèn",    color: "#FBBF24" },
+  cam21:     { label: "CAM2.1 — Ngã3 không đèn", color: "#FB923C" },
+  cam23:     { label: "CAM2.3 — Ngã4 không đèn", color: "#FB923C" },
+  cam_alley: { label: "CAM Hẻm — Đầu hẻm",      color: "#34D399" },
+};
+
+/* ─── camera display toggle (used in Lọc tab) ────────────────────────────── */
+function CameraToggle() {
+  const { cameras, showCameras, setShowCameras } = useScanner();
+  if (!cameras || cameras.length === 0) return null;
+
+  return (
+    <div style={{
+      padding: "0.65rem 0.85rem",
+      borderBottom: `1px solid ${C.border}`,
+    }}>
+      <div style={{ fontSize: "0.67rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
+        Vị trí Camera
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+        <div
+          onClick={() => setShowCameras(!showCameras)}
+          style={{
+            width: "36px", height: "20px", borderRadius: "10px", position: "relative",
+            background: showCameras ? C.cyan : C.muted,
+            transition: "background 0.2s", flexShrink: 0, cursor: "pointer",
+          }}
+        >
+          <div style={{
+            position: "absolute", top: "3px",
+            left: showCameras ? "18px" : "3px",
+            width: "14px", height: "14px", borderRadius: "50%",
+            background: "white", transition: "left 0.2s",
+          }} />
+        </div>
+        <span style={{ fontSize: "0.77rem", color: showCameras ? C.text : C.muted, userSelect: "none" }}>
+          {showCameras ? "Đang hiển thị" : "Đã ẩn"} · <span style={{ color: C.cyan }}>{cameras.length} camera</span>
+        </span>
+      </label>
+    </div>
+  );
+}
+
 /* ─── result legend (filter by category in results) ──────────────────────── */
 function ResultLegend() {
   const { stats, filter, setFilter, points } = useScanner();
@@ -311,7 +358,7 @@ function ResultsList() {
 
 /* ─── right panel ─────────────────────────────────────────────────────────── */
 export default function RightPanel({ fullscreen = false, onCollapse }) {
-  const { points, stats, loading } = useScanner();
+  const { points, stats, loading, cameras } = useScanner();
   const [tab, setTab] = useState("results"); // "results" | "stats"
 
   const allKeys = Object.keys(CATEGORIES);
@@ -414,7 +461,7 @@ export default function RightPanel({ fullscreen = false, onCollapse }) {
           )}
 
           {/* bar chart */}
-          <div style={{ padding: "0.75rem 0.85rem" }}>
+          <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
             <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.7rem" }}>Phân bố theo loại</div>
             {total === 0 ? (
               <div style={{ color: C.muted, fontSize: "0.78rem", textAlign: "center", padding: "1rem 0" }}>Chưa có dữ liệu</div>
@@ -431,11 +478,41 @@ export default function RightPanel({ fullscreen = false, onCollapse }) {
               ))
             )}
           </div>
+
+          {/* camera stats */}
+          {cameras && cameras.length > 0 && (() => {
+            const camByType = {};
+            for (const c of cameras) camByType[c.type] = (camByType[c.type] || 0) + 1;
+            const camMax = Math.max(...Object.values(camByType), 1);
+            return (
+              <div style={{ padding: "0.75rem 0.85rem" }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "0.7rem" }}>
+                  <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Camera đề xuất</div>
+                  <span style={{ fontSize: "1rem", fontWeight: 800, color: C.cyan }}>{cameras.length}</span>
+                </div>
+                {Object.entries(CAM_TYPE_META).map(([type, meta]) => {
+                  const count = camByType[type] || 0;
+                  if (!count) return null;
+                  return (
+                    <MiniBar
+                      key={type}
+                      label={meta.label.split(" — ")[0]}
+                      value={count}
+                      max={camMax}
+                      color={meta.color}
+                      total={cameras.length}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
       {tab === "categories" && (
         <div style={{ flex: 1, overflowY: "auto" }}>
+          <CameraToggle />
           <ResultLegend />
         </div>
       )}

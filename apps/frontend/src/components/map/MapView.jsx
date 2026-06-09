@@ -112,11 +112,12 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
 // ─── Camera icons via canvas ImageData (synchronous, no fetch needed) ────────
 
 const CAM_ICONS = {
-  cam1:  { color: "#38BDF8" },
-  cam2:  { color: "#FBBF24" },
-  cam22: { color: "#FBBF24" },
-  cam21: { color: "#FB923C" },
-  cam23: { color: "#FB923C" },
+  cam1:      { color: "#38BDF8" },
+  cam2:      { color: "#FBBF24" },
+  cam22:     { color: "#FBBF24" },
+  cam21:     { color: "#FB923C" },
+  cam23:     { color: "#FB923C" },
+  cam_alley: { color: "#34D399" },
 };
 
 function makeCamImageData(color, size = 28) {
