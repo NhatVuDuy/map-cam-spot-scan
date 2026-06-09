@@ -206,7 +206,7 @@ const btnStyle = {
 
 /* ─── results list ────────────────────────────────────────────────────────── */
 function ResultsList() {
-  const { points, filter, selectedPoint, setSelectedPoint } = useScanner();
+  const { points, filter, selectedPoint, setSelectedPoint, removePoint } = useScanner();
   const { exportCSV, exportGeoJSON } = useExport();
 
   const filtered = filter ? points.filter(p => p.category === filter) : points;
@@ -265,12 +265,28 @@ function ResultsList() {
                     fontSize: "0.78rem", color: isSelected ? C.amber : C.text,
                     fontWeight: isSelected ? 600 : 400,
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>{p.name}</div>
+                  }}>{p.name}
+                    {p.source === "custom" && (
+                      <span style={{ marginLeft: "5px", fontSize: "0.6rem", padding: "1px 4px", background: `${C.green}22`, color: C.green, borderRadius: "3px" }}>thủ công</span>
+                    )}
+                  </div>
                   <div style={{ fontSize: "0.67rem", color: C.muted, marginTop: "2px" }}>
                     {cat?.label} · {p.distanceM >= 1000 ? `${(p.distanceM / 1000).toFixed(1)}km` : `${p.distanceM}m`}
                     {p.score !== undefined && <span style={{ color: `${C.amber}99`, marginLeft: "4px" }}>★{p.score}</span>}
                   </div>
                 </div>
+                <button
+                  title="Xóa điểm"
+                  onClick={e => { e.stopPropagation(); removePoint(p.id); }}
+                  style={{
+                    flexShrink: 0, background: "none", border: "none",
+                    color: C.dim, cursor: "pointer", fontSize: "0.85rem",
+                    padding: "2px 4px", borderRadius: "3px", lineHeight: 1,
+                    opacity: 0.5,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = C.red; e.currentTarget.style.opacity = "1"; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = C.dim; e.currentTarget.style.opacity = "0.5"; }}
+                >✕</button>
               </div>
             );
           })
@@ -309,11 +325,11 @@ export default function RightPanel({ fullscreen = false, onCollapse }) {
         flexShrink: 0, alignItems: "stretch",
       }}>
         {onCollapse && (
-          <button onClick={onCollapse} title="Thu nhỏ" style={{
-            background: "none", border: "none", borderRight: `1px solid ${C.border}`,
-            color: C.muted, cursor: "pointer", fontSize: "1.1rem",
-            padding: "0 10px", flexShrink: 0,
-          }}>›</button>
+          <button onClick={onCollapse} title="Thu nhỏ panel" style={{
+            background: `${C.cyan}18`, border: "none", borderRight: `1px solid ${C.border}`,
+            color: C.cyan, cursor: "pointer", fontSize: "0.72rem", fontWeight: 700,
+            padding: "0 8px", flexShrink: 0, display: "flex", alignItems: "center", gap: "3px",
+          }}>Ẩn ›</button>
         )}
         {[
           { key: "results",    label: "Kết quả", icon: "📋" },

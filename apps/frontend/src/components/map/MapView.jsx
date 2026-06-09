@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import useScanStore from "../../store/scanStore.js";
 import { CATEGORIES } from "../../utils/categories.js";
 import { circleGeoJSON } from "../../utils/geo.js";
+import MapContextMenu from "./MapContextMenu.jsx";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 
@@ -117,6 +118,8 @@ function MapViewInner() {
   const selectedPoint = useScanStore((s) => s.selectedPoint);
   const boundary      = useScanStore((s) => s.boundary);
   const setArea       = useScanStore((s) => s.setArea);
+  const addPoint      = useScanStore((s) => s.addPoint);
+  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, lat, lng }
 
   // ── 1. Init map ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -255,6 +258,14 @@ function MapViewInner() {
       });
 
       markerRef.current = marker;
+
+      // Right-click context menu
+      map.on("contextmenu", (e) => {
+        e.preventDefault?.();
+        const { x, y } = e.point;
+        const rect = map.getCanvas().getBoundingClientRect();
+        setCtxMenu({ x: rect.left + x, y: rect.top + y, lat: e.lngLat.lat, lng: e.lngLat.lng });
+      });
 
       // Signal React that map is ready — this triggers all data-sync effects
       setMapReady(true);
@@ -403,6 +414,25 @@ function MapViewInner() {
     <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       <ReturnBtn onClick={handleReturn} />
+      {ctxMenu && (
+        <MapContextMenu
+          x={ctxMenu.x} y={ctxMenu.y}
+          lat={ctxMenu.lat} lng={ctxMenu.lng}
+          onClose={() => setCtxMenu(null)}
+          onMoveCenter={(lat, lng) => {
+            setArea({ lat, lng });
+            if (markerRef.current) markerRef.current.setLngLat([lng, lat]);
+          }}
+          onAddPoint={(pt) => {
+            const dist = (p, a) => {
+              const dLat = (p.lat - a.lat) * 111_320;
+              const dLng = (p.lng - a.lng) * 111_320 * Math.cos(a.lat * Math.PI / 180);
+              return Math.round(Math.sqrt(dLat * dLat + dLng * dLng));
+            };
+            addPoint({ ...pt, distanceM: dist(pt, area) });
+          }}
+        />
+      )}
     </div>
   );
 }

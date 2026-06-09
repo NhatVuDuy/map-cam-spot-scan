@@ -33,6 +33,21 @@ const useScanStore = create((set, get) => ({
   setBoundary: (boundary) => set({ boundary }),
   setMaxResults: (maxResults) => set({ maxResults: Number(maxResults) }),
 
+  addPoint: (point) => {
+    const points = [point, ...get().points];
+    const stats = {};
+    for (const p of points) stats[p.category] = (stats[p.category] || 0) + 1;
+    set({ points, stats });
+  },
+
+  removePoint: (id) => {
+    const points = get().points.filter(p => p.id !== id);
+    const stats = {};
+    for (const p of points) stats[p.category] = (stats[p.category] || 0) + 1;
+    const sel = get().selectedPoint;
+    set({ points, stats, selectedPoint: sel?.id === id ? null : sel });
+  },
+
   runScan: async () => {
     const { area, categories, boundary, maxResults } = get();
     set({ loading: true, error: null, progress: "Đang khởi động...", points: [], roads: [], selectedPoint: null });

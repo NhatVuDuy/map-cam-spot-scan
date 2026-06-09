@@ -168,10 +168,12 @@ export default function Sidebar({ fullscreen = false, onCollapse }) {
             Chế độ quét
           </span>
           {onCollapse && (
-            <button onClick={onCollapse} title="Thu nhỏ" style={{
-              background: "none", border: "none", color: C.muted, cursor: "pointer",
-              fontSize: "1.1rem", lineHeight: 1, padding: "0 2px",
-            }}>‹</button>
+            <button onClick={onCollapse} title="Thu nhỏ panel" style={{
+              background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`,
+              borderRadius: "5px", color: C.cyan, cursor: "pointer",
+              fontSize: "0.75rem", fontWeight: 700, padding: "2px 7px", lineHeight: 1.4,
+              display: "flex", alignItems: "center", gap: "3px",
+            }}>‹ Ẩn</button>
           )}
         </div>
         <div style={{ display: "flex" }}>

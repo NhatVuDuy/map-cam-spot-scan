@@ -25,6 +25,8 @@ export function useScanner() {
     setArea: store.setArea,
     setCategories: store.setCategories,
     setMaxResults: store.setMaxResults,
+    addPoint: store.addPoint,
+    removePoint: store.removePoint,
     runScan: store.runScan,
     resetResults: store.resetResults,
     setFilter: store.setFilter,
