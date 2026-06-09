@@ -209,7 +209,7 @@ export async function browserScan({ area, categories, boundary = null, options =
   // Camera placement (runs regardless of selected categories)
   onProgress?.("Tính toán vị trí camera...");
   const cameras = ways.length > 0
-    ? planAllCameras({ intersections: detectedIntersections, ways: rawRoads, signalNodes })
+    ? planAllCameras({ intersections: detectedIntersections, ways: rawRoads, signalNodes, center, radiusM: useBoundary ? undefined : radiusM })
     : [];
 
   const roads = includeRoads

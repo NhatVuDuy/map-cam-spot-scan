@@ -130,7 +130,7 @@ export function detectIntersections(ways, center, radiusM) {
 
     // Bearing of the first alley arm (for orienting the alley rectangle icon)
     const alleyIdx    = armRoadClasses.findIndex(c => c === ALLEY_CLASS);
-    const alleyBearing = alleyIdx >= 0 ? armBearings[alleyIdx] : 0;
+    const alleyBearing = alleyIdx >= 0 ? armBearings[alleyIdx] : null;
 
     const shapeLabel = {
       quad: "Ngã tư",

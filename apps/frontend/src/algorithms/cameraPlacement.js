@@ -159,9 +159,14 @@ export function planCamerasForRoads(ways) {
   return cameras;
 }
 
-export function planAllCameras({ intersections, ways, signalNodes }) {
+export function planAllCameras({ intersections, ways, signalNodes, center, radiusM }) {
   _id = 0;
-  const cam1 = planCamerasForRoads(ways);
+  const cam1Raw = planCamerasForRoads(ways);
+  // Filter CAM1 to the scan area so roads that extend beyond the boundary don't
+  // produce cameras outside the user's selected zone.
+  const cam1 = (center && radiusM)
+    ? cam1Raw.filter(c => haversineM(c.lat, c.lng, center.lat, center.lng) <= radiusM)
+    : cam1Raw;
   const cam2 = planCamerasForIntersections(intersections, signalNodes);
   return [...cam1, ...cam2].slice(0, 5000);
 }
