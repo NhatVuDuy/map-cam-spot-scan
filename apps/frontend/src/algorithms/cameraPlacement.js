@@ -81,22 +81,36 @@ export function planCamerasForIntersections(intersections, signalNodes) {
 
     const effectiveArmCount = shape === "quad" ? 4 : shape === "tri" ? 3 : ix.armCount;
 
-    // For alley shape: place cams on the minor arm(s) — lowest class present.
-    // This handles both service/living_street (class 0) and residential/unclassified
-    // (class 1) alleys, and supports manual overrides where armClass may be any value.
-    const minArmClass = shape === "alley" ? Math.min(...armClasses) : null;
+    // Pre-compute which arm indices are "alley arms" for shape === "alley".
+    // If arms have mixed classes: pick only the lowest-class arms.
+    // If all arms share the same class (manual override edge case): pick only the
+    // single arm whose bearing is closest to ix.alleyBearing to avoid cameras on all arms.
+    let alleyArmIndices = new Set();
+    if (shape === "alley") {
+      const minClass = Math.min(...armClasses);
+      const maxClass = Math.max(...armClasses);
+      if (minClass < maxClass) {
+        armClasses.forEach((c, i) => { if (c === minClass) alleyArmIndices.add(i); });
+      } else {
+        const ab = ix.alleyBearing ?? ix.armBearings[0];
+        let bestIdx = 0, bestDiff = Infinity;
+        ix.armBearings.forEach((b, j) => {
+          const diff = Math.abs(((b - ab + 540) % 360) - 180);
+          if (diff < bestDiff) { bestDiff = diff; bestIdx = j; }
+        });
+        alleyArmIndices.add(bestIdx);
+      }
+    }
 
     for (let i = 0; i < ix.armBearings.length; i++) {
       const bearing  = ix.armBearings[i];
-      const armClass = armClasses[i];
       let cams = [];
 
       if (shape === "quad" || shape === "tri") {
         cams = hasSignal
           ? camsMajorWithSignal(ix.lat, ix.lng, bearing, effectiveArmCount)
           : camsMajorNoSignal(ix.lat, ix.lng, bearing, effectiveArmCount);
-      } else if (shape === "alley" && armClass === minArmClass) {
-        // Place entrance cams on the minor-class arm(s) only
+      } else if (shape === "alley" && alleyArmIndices.has(i)) {
         cams = camsAlley(ix.lat, ix.lng, bearing);
       }
 
