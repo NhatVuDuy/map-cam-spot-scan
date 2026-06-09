@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { version } from "../../../package.json";
+import { useScanner } from "../../hooks/useScanner.js";
 
 const S = {
   header: {
@@ -19,16 +20,56 @@ const S = {
     border: "1px solid #334155", borderRadius: "6px",
     padding: "4px 10px", cursor: "pointer",
   },
+  saveBtn: {
+    fontSize: "0.75rem", color: "#34d399", background: "rgba(52,211,153,0.08)",
+    border: "1px solid rgba(52,211,153,0.35)", borderRadius: "6px",
+    padding: "4px 10px", cursor: "pointer", fontWeight: 600,
+  },
+  loadBtn: {
+    fontSize: "0.75rem", color: "#fb923c", background: "rgba(251,146,60,0.08)",
+    border: "1px solid rgba(251,146,60,0.35)", borderRadius: "6px",
+    padding: "4px 10px", cursor: "pointer", fontWeight: 600,
+  },
 };
 
 export default function Header() {
   const navigate = useNavigate();
+  const { points, saveSession, loadSession } = useScanner();
+  const fileInputRef = useRef(null);
+
+  const handleLoad = (e) => {
+    const file = e.target.files?.[0];
+    if (file) loadSession(file);
+    e.target.value = "";
+  };
+
   return (
     <header style={S.header}>
       <span style={{ fontSize: "1.25rem" }}>📹</span>
       <span style={S.title}>Camera Placement Scanner</span>
       <span style={S.version}>v{version}</span>
       <div style={S.spacer} />
+
+      {/* Session save / load */}
+      <button
+        style={{ ...S.saveBtn, opacity: points.length === 0 ? 0.4 : 1 }}
+        disabled={points.length === 0}
+        onClick={saveSession}
+        title="Xuất kết quả hiện tại ra file JSON"
+      >💾 Lưu</button>
+      <button
+        style={S.loadBtn}
+        onClick={() => fileInputRef.current?.click()}
+        title="Tải file phiên làm việc đã lưu"
+      >📂 Tải</button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        style={{ display: "none" }}
+        onChange={handleLoad}
+      />
+
       <button style={S.navBtn} onClick={() => navigate("/sys")}
         onMouseEnter={e => e.target.style.color = "#A78BFA"}
         onMouseLeave={e => e.target.style.color = "#64748b"}

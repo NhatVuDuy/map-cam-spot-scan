@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
 import { planAllCameras } from "../algorithms/cameraPlacement.js";
 import { CATEGORIES } from "../utils/categories.js";
+import { exportSession, importSession } from "../utils/sessionFile.js";
 
 const DEFAULT_CATEGORIES = Object.keys(CATEGORIES);
 
@@ -137,6 +138,26 @@ const useScanStore = create((set, get) => ({
       });
     } catch (err) {
       set({ loading: false, progress: "", error: err.message || "Quét thất bại" });
+    }
+  },
+
+  saveSession: () => exportSession(get()),
+
+  loadSession: async (file) => {
+    set({ loading: true, error: null, progress: "Đang đọc file..." });
+    try {
+      const text  = await file.text();
+      const state = importSession(text);
+      const count = state.points.length;
+      set({
+        ...state,
+        loading: false, error: null,
+        progress: `Đã tải ${count} địa điểm từ file`,
+        selectedPoint: null, filter: null,
+        intersectionOverrides: state.intersectionOverrides,
+      });
+    } catch (e) {
+      set({ loading: false, error: e.message });
     }
   },
 
