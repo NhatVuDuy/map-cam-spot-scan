@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
 import { planAllCameras } from "../algorithms/cameraPlacement.js";
 import { CATEGORIES } from "../utils/categories.js";
-import { exportSession, importSession } from "../utils/sessionFile.js";
+import { saveToHandle, saveAsNew, importSession } from "../utils/sessionFile.js";
 
 const DEFAULT_CATEGORIES = Object.keys(CATEGORIES);
 
@@ -35,6 +35,10 @@ const useScanStore = create((set, get) => ({
 
   // --- Per-intersection user overrides: id → { intersectionShape?, hasSignal? } ---
   intersectionOverrides: {},
+
+  // --- Session file tracking ---
+  sessionFileHandle: null,   // FileSystemFileHandle | null
+  sessionFileName:   null,   // string | null  (e.g. "cam-scan-2025-06-09.json")
 
   // --- UI ---
   loading: false,
@@ -107,6 +111,7 @@ const useScanStore = create((set, get) => ({
       points: [], roads: [], cameras: [],
       rawIntersections: [], rawWays: [], rawSignalNodes: [],
       intersectionOverrides: {},
+      sessionFileHandle: null, sessionFileName: null,
       selectedPoint: null,
     });
 
@@ -141,20 +146,44 @@ const useScanStore = create((set, get) => ({
     }
   },
 
-  saveSession: () => exportSession(get()),
+  /**
+   * Save to the currently open file (if any), otherwise open Save As dialog / download.
+   */
+  saveSession: async () => {
+    const state = get();
+    const { sessionFileHandle, sessionFileName } = state;
+    if (sessionFileHandle) {
+      const ok = await saveToHandle(sessionFileHandle, state);
+      if (ok) return; // wrote in-place — done
+    }
+    // No handle or write failed → fall back to Save As / download
+    const handle = await saveAsNew(state, sessionFileName ?? undefined);
+    if (handle) set({ sessionFileHandle: handle, sessionFileName: handle.name });
+  },
+
+  /**
+   * Always open a new Save As dialog / download (ignores current handle).
+   */
+  saveSessionAs: async () => {
+    const state = get();
+    const handle = await saveAsNew(state);
+    if (handle) set({ sessionFileHandle: handle, sessionFileName: handle.name });
+  },
 
   loadSession: async (file) => {
     set({ loading: true, error: null, progress: "Đang đọc file..." });
     try {
-      const text  = await file.text();
-      const state = importSession(text);
+      const state = await importSession(file);
       const count = state.points.length;
       set({
         ...state,
+        // Browsers give a File object from <input> — no FileSystemFileHandle.
+        // showOpenFilePicker() would give one, but <input> is simpler for now.
+        sessionFileHandle: null,
+        sessionFileName:   state._filename ?? file.name ?? null,
         loading: false, error: null,
-        progress: `Đã tải ${count} địa điểm từ file`,
+        progress: `Đã tải ${count} địa điểm từ "${state._filename ?? file.name}"`,
         selectedPoint: null, filter: null,
-        intersectionOverrides: state.intersectionOverrides,
       });
     } catch (e) {
       set({ loading: false, error: e.message });
@@ -166,6 +195,7 @@ const useScanStore = create((set, get) => ({
       points: [], roads: [], cameras: [], bbox: null, stats: {},
       rawIntersections: [], rawWays: [], rawSignalNodes: [],
       intersectionOverrides: {},
+      sessionFileHandle: null, sessionFileName: null,
       error: null, progress: "", selectedPoint: null,
     }),
 

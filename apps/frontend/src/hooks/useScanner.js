@@ -37,7 +37,9 @@ export function useScanner() {
     setSelectedPoint: store.setSelectedPoint,
     intersectionOverrides: store.intersectionOverrides,
     setIntersectionOverride: store.setIntersectionOverride,
+    sessionFileName: store.sessionFileName,
     saveSession: store.saveSession,
+    saveSessionAs: store.saveSessionAs,
     loadSession: store.loadSession,
   };
 }

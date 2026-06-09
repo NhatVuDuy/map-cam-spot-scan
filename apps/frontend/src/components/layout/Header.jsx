@@ -5,7 +5,7 @@ import { useScanner } from "../../hooks/useScanner.js";
 
 const S = {
   header: {
-    display: "flex", alignItems: "center", gap: "0.75rem",
+    display: "flex", alignItems: "center", gap: "0.5rem",
     padding: "0 1rem", height: "48px",
     background: "#1e293b", borderBottom: "1px solid #334155", flexShrink: 0,
   },
@@ -18,24 +18,35 @@ const S = {
   navBtn: {
     fontSize: "0.75rem", color: "#64748b", background: "none",
     border: "1px solid #334155", borderRadius: "6px",
-    padding: "4px 10px", cursor: "pointer",
+    padding: "4px 10px", cursor: "pointer", whiteSpace: "nowrap",
   },
   saveBtn: {
     fontSize: "0.75rem", color: "#34d399", background: "rgba(52,211,153,0.08)",
     border: "1px solid rgba(52,211,153,0.35)", borderRadius: "6px",
-    padding: "4px 10px", cursor: "pointer", fontWeight: 600,
+    padding: "4px 10px", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
+  },
+  saveAsBtn: {
+    fontSize: "0.75rem", color: "#94a3b8", background: "none",
+    border: "1px solid #334155", borderRadius: "6px",
+    padding: "4px 8px", cursor: "pointer", whiteSpace: "nowrap",
   },
   loadBtn: {
     fontSize: "0.75rem", color: "#fb923c", background: "rgba(251,146,60,0.08)",
     border: "1px solid rgba(251,146,60,0.35)", borderRadius: "6px",
-    padding: "4px 10px", cursor: "pointer", fontWeight: 600,
+    padding: "4px 10px", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
+  },
+  fileName: {
+    fontSize: "0.68rem", color: "#64748b", maxWidth: "160px",
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+    borderLeft: "1px solid #334155", paddingLeft: "0.5rem",
   },
 };
 
 export default function Header() {
   const navigate = useNavigate();
-  const { points, saveSession, loadSession } = useScanner();
+  const { points, sessionFileName, saveSession, saveSessionAs, loadSession } = useScanner();
   const fileInputRef = useRef(null);
+  const hasData = points.length > 0;
 
   const handleLoad = (e) => {
     const file = e.target.files?.[0];
@@ -50,13 +61,36 @@ export default function Header() {
       <span style={S.version}>v{version}</span>
       <div style={S.spacer} />
 
-      {/* Session save / load */}
+      {/* Active file name */}
+      {sessionFileName && (
+        <span style={S.fileName} title={sessionFileName}>
+          📄 {sessionFileName}
+        </span>
+      )}
+
+      {/* 💾 Save — writes back to same file if loaded via File System Access API,
+          otherwise falls back to Save As dialog / download */}
       <button
-        style={{ ...S.saveBtn, opacity: points.length === 0 ? 0.4 : 1 }}
-        disabled={points.length === 0}
+        style={{ ...S.saveBtn, opacity: hasData ? 1 : 0.4 }}
+        disabled={!hasData}
         onClick={saveSession}
-        title="Xuất kết quả hiện tại ra file JSON"
-      >💾 Lưu</button>
+        title={sessionFileName
+          ? `Lưu đè vào "${sessionFileName}"`
+          : "Lưu phiên làm việc ra file"}
+      >
+        💾 {sessionFileName ? "Lưu" : "Lưu"}
+      </button>
+
+      {/* ↗ Save As — always creates / prompts for a new file */}
+      {hasData && (
+        <button
+          style={S.saveAsBtn}
+          onClick={saveSessionAs}
+          title="Lưu thành file mới"
+        >↗ Lưu mới</button>
+      )}
+
+      {/* 📂 Load */}
       <button
         style={S.loadBtn}
         onClick={() => fileInputRef.current?.click()}
