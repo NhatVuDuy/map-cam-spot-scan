@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useScanner } from "../../hooks/useScanner.js";
 import { useExport } from "../../hooks/useExport.js";
 import { CATEGORIES } from "../../utils/categories.js";
+import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
 const C = {
@@ -207,6 +208,8 @@ const btnStyle = {
 /* ─── results list ────────────────────────────────────────────────────────── */
 function ResultsList() {
   const { points, filter, selectedPoint, setSelectedPoint, removePoint } = useScanner();
+  const [confirmId, setConfirmId] = useState(null);
+  const confirmPoint = confirmId ? points.find(p => p.id === confirmId) : null;
   const { exportCSV, exportGeoJSON } = useExport();
 
   const filtered = filter ? points.filter(p => p.category === filter) : points;
@@ -277,7 +280,7 @@ function ResultsList() {
                 </div>
                 <button
                   title="Xóa điểm"
-                  onClick={e => { e.stopPropagation(); removePoint(p.id); }}
+                  onClick={e => { e.stopPropagation(); setConfirmId(p.id); }}
                   style={{
                     flexShrink: 0, background: "none", border: "none",
                     color: C.dim, cursor: "pointer", fontSize: "0.85rem",
@@ -292,6 +295,16 @@ function ResultsList() {
           })
         )}
       </div>
+
+      {confirmPoint && (
+        <ConfirmDialog
+          title="Xóa địa điểm"
+          message={<>Xóa <strong style={{ color: "#e2e8f0" }}>{confirmPoint.name}</strong> khỏi danh sách kết quả?</>}
+          confirmLabel="Xóa"
+          onConfirm={() => { removePoint(confirmId); setConfirmId(null); }}
+          onCancel={() => setConfirmId(null)}
+        />
+      )}
     </div>
   );
 }

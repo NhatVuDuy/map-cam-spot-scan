@@ -5,6 +5,7 @@ import useScanStore from "../../store/scanStore.js";
 import { CATEGORIES } from "../../utils/categories.js";
 import { circleGeoJSON } from "../../utils/geo.js";
 import MapContextMenu from "./MapContextMenu.jsx";
+import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 
@@ -97,6 +98,13 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
         </div>
         ${score != null ? `<div style="display:flex;justify-content:space-between;font-size:0.78rem"><span style="color:#64748b">Điểm ưu tiên</span><strong style="color:#FBBF24">★ ${score}</strong></div>` : ""}
       </div>
+      <!-- delete button -->
+      <div style="padding:0.4rem 0.85rem 0.65rem">
+        <button
+          data-delete-id="${props.id}"
+          style="width:100%;padding:5px 0;background:#F8717118;border:1px solid #F8717144;border-radius:6px;color:#F87171;font-size:0.75rem;font-weight:600;cursor:pointer"
+        >🗑 Xóa điểm này</button>
+      </div>
     </div>
   `;
 }
@@ -119,7 +127,22 @@ function MapViewInner() {
   const boundary      = useScanStore((s) => s.boundary);
   const setArea       = useScanStore((s) => s.setArea);
   const addPoint      = useScanStore((s) => s.addPoint);
-  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, lat, lng }
+  const removePoint   = useScanStore((s) => s.removePoint);
+  const [ctxMenu, setCtxMenu]         = useState(null); // { x, y, lat, lng }
+  const [confirmDelete, setConfirmDelete] = useState(null); // { id, name }
+
+  // ── Popup delete button handler (delegate via document) ─────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      const btn = e.target.closest("[data-delete-id]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-delete-id");
+      const pt = useScanStore.getState().points.find(p => p.id === id);
+      if (pt) setConfirmDelete({ id: pt.id, name: pt.name });
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
 
   // ── 1. Init map ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -414,6 +437,19 @@ function MapViewInner() {
     <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       <ReturnBtn onClick={handleReturn} />
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Xóa địa điểm"
+          message={<>Xóa <strong style={{ color: "#e2e8f0" }}>{confirmDelete.name}</strong> khỏi kết quả?</>}
+          confirmLabel="Xóa"
+          onConfirm={() => {
+            removePoint(confirmDelete.id);
+            if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+            setConfirmDelete(null);
+          }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
       {ctxMenu && (
         <MapContextMenu
           x={ctxMenu.x} y={ctxMenu.y}
