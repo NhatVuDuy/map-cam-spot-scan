@@ -74,7 +74,7 @@ export default function Scanner() {
   return (
     <div style={{
       display: "flex", flexDirection: "column",
-      height: "100vh", width: "100vw",
+      height: "var(--app-h, 100dvh)", width: "100vw",
       overflow: "hidden", background: C.bg,
     }}>
       <Header />
