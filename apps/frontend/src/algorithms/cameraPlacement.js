@@ -12,16 +12,24 @@ let _id = 0;
 function nextId(type) { return `cam-${type}-${++_id}`; }
 
 // ─── CAM2 / CAM2.2: major arm WITH traffic signal ─────────────────────────
-// 1 cam on right lane (outbound) + 1 cam on left lane (inbound) per arm
+// Right lane (inbound side): back-to-back pair, same as no-signal.
+// Left lane (outbound side): 1 cam facing outbound (from intersection toward arm).
 function camsMajorWithSignal(intLat, intLng, armBearing, armCount) {
   const setback  = offsetPoint(intLat, intLng, armBearing, CAM_SETBACK_M);
   const rightPt  = offsetPoint(setback.lat, setback.lng, (armBearing + 90) % 360, LANE_OFFSET_M);
   const leftPt   = offsetPoint(setback.lat, setback.lng, (armBearing + 270) % 360, LANE_OFFSET_M);
   const inbound  = (armBearing + 180) % 360;
   const type     = armCount >= 4 ? "cam22" : "cam2";
+
+  // Back-to-back pair on right lane (same geometry as no-signal)
+  const camA = offsetPoint(rightPt.lat, rightPt.lng, armBearing, PAIR_OFFSET_M / 2);
+  const camB = offsetPoint(rightPt.lat, rightPt.lng, inbound,    PAIR_OFFSET_M / 2);
+
+  // Extra cam on left lane, facing outbound (from intersection outward)
   return [
-    { ...rightPt, bearing: armBearing, type },
-    { ...leftPt,  bearing: inbound,    type },
+    { ...camA,   bearing: armBearing, type },
+    { ...camB,   bearing: inbound,    type },
+    { ...leftPt, bearing: armBearing, type },
   ];
 }
 

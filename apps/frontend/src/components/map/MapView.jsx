@@ -118,10 +118,11 @@ function buildIntersectionPopupHTML({ props, distFmt }) {
           <option value="alley" ${shape === "alley" ? "selected" : ""}>▬ Đầu hẻm</option>
           <option value="minor" ${shape === "minor" ? "selected" : ""}>· Giao cắt nhỏ</option>
         </select>
+        ${shape !== "alley" && shape !== "minor" ? `
         <button data-ix-signal="${props.id}" data-ix-signal-cur="${hasSignal}"
           style="width:100%;padding:5px 0;margin-top:2px;background:${hasSignal ? "#FBBF2418" : "#1e3354"};border:1px solid ${hasSignal ? "#FBBF2444" : "#334155"};border-radius:6px;color:${hasSignal ? "#FBBF24" : "#94a3b8"};font-size:0.75rem;font-weight:600;cursor:pointer">
           ${hasSignal ? "🚦 Có đèn — Bấm để tắt" : "⭕ Không đèn — Bấm để bật"}
-        </button>
+        </button>` : ""}
       </div>
       <div style="padding:0.4rem 0.85rem 0.65rem">
         <button data-delete-id="${props.id}"
@@ -480,18 +481,38 @@ function MapViewInner() {
         },
       });
 
-      // ── Intersection shape icons ───────────────────────────────────────────
-      // Separate symbol layer so intersections get shape icons, not circles.
-      const ixFilter = ["==", ["get", "category"], "intersection"];
+      // ── Intersection shape icons (quad / tri / alley only — minor uses circles) ──
+      const ixFilter        = ["==", ["get", "category"], "intersection"];
+      const ixShapeFilter   = ["all", ixFilter, ["!=", ["coalesce", ["get", "intersectionShape"], "minor"], "minor"]];
+      const ixMinorFilter   = ["all", ixFilter, ["==", ["coalesce", ["get", "intersectionShape"], "minor"], "minor"]];
+
+      // Minor intersections: filled circles (same style as before)
+      map.addLayer({
+        id: "intersections-minor",
+        type: "circle",
+        source: "points",
+        filter: ixMinorFilter,
+        paint: {
+          "circle-color": "#FF6B6B",
+          "circle-radius": [
+            "interpolate", ["linear"], ["zoom"],
+            10, ["step", ["coalesce", ["get", "roadClass"], 0], 2, 1, 3, 2, 4, 3, 6, 4, 7, 5, 9],
+            16, ["step", ["coalesce", ["get", "roadClass"], 0], 4, 1, 6, 2, 8, 3, 12, 4, 15, 5, 18],
+          ],
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
 
       map.addLayer({
         id: "intersections-symbol",
         type: "symbol",
         source: "points",
-        filter: ixFilter,
+        filter: ixShapeFilter,
         layout: {
           "icon-image": ["concat", "ix-", ["coalesce", ["get", "intersectionShape"], "minor"]],
-          // Size by road class: class 1→0.55, 2→0.75, 3→0.90, 4→1.05, 5→1.20
+          // Size by road class
           "icon-size": [
             "interpolate", ["linear"], ["zoom"],
             10,
@@ -499,10 +520,10 @@ function MapViewInner() {
             16,
             ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
           ],
-          // Rotate the alley rectangle to point toward the alley arm
+          // Rotate alley rectangle toward the alley arm
           "icon-rotate": [
             "case",
-            ["==", ["coalesce", ["get", "intersectionShape"], "minor"], "alley"],
+            ["==", ["coalesce", ["get", "intersectionShape"], ""], "alley"],
             ["coalesce", ["get", "alleyBearing"], 0],
             0,
           ],
@@ -512,12 +533,12 @@ function MapViewInner() {
         },
       });
 
-      // Traffic signal dot: yellow filled circle at the centre of signal intersections
+      // Traffic signal dot: yellow filled circle (only on quad/tri with signal)
       map.addLayer({
         id: "intersections-signal",
         type: "circle",
         source: "points",
-        filter: ["all", ixFilter, ["==", ["get", "hasSignal"], true]],
+        filter: ["all", ixShapeFilter, ["==", ["get", "hasSignal"], true]],
         paint: {
           "circle-color": "#FBBF24",
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 6],
@@ -692,9 +713,19 @@ function MapViewInner() {
     if (!mapReady || !mapRef.current) return;
     const fc = {
       type: "FeatureCollection",
-      features: points.map((p) => ({
+      features: points.map((p) => {
+        // Offset the alley rectangle icon toward the alley arm so it visually
+        // sits at the mouth of the alley rather than on the centre of the major road.
+        let displayLat = p.lat, displayLng = p.lng;
+        if (p.intersectionShape === "alley" && p.alleyBearing != null) {
+          const rad    = (p.alleyBearing * Math.PI) / 180;
+          const shiftM = 10;
+          displayLat += (shiftM / 111320) * Math.cos(rad);
+          displayLng += (shiftM / (111320 * Math.cos(p.lat * Math.PI / 180))) * Math.sin(rad);
+        }
+        return ({
         type: "Feature",
-        geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+        geometry: { type: "Point", coordinates: [displayLng, displayLat] },
         properties: {
           id: p.id,
           category: p.category,
@@ -710,7 +741,8 @@ function MapViewInner() {
           lat: p.lat,
           lon: p.lng,
         },
-      })),
+      });
+    }),
     };
     mapRef.current.getSource("points")?.setData(fc);
 
@@ -760,7 +792,8 @@ function MapViewInner() {
     map.setPaintProperty("points-circle",       "circle-opacity", poiOpacity);
     map.setPaintProperty("points-halo",         "circle-opacity", filter ? ["case", ["==", ["get", "category"], filter], 0.22, 0.03] : 0.22);
     map.setPaintProperty("points-label",        "text-opacity",   filter ? ["case", ["==", ["get", "category"], filter], 1, 0.1] : 1);
-    map.setPaintProperty("intersections-signal","circle-opacity", ixOpacity);
+    map.setPaintProperty("intersections-signal", "circle-opacity", ixOpacity);
+    map.setPaintProperty("intersections-minor",  "circle-opacity", ixOpacity);
     map.setLayoutProperty("intersections-symbol", "visibility", ixOpacity > 0 ? "visible" : "none");
   }, [mapReady, filter]);
 
