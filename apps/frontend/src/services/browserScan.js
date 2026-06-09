@@ -183,6 +183,15 @@ export async function browserScan({ area, categories, boundary = null, options =
     detectedIntersections = useBoundary
       ? allIntersections.filter((p) => pointInPolygon([p.lng, p.lat], boundary.geometry))
       : allIntersections;
+
+    // Pre-compute hasSignal for each intersection (60 m snap radius)
+    const SIGNAL_RADIUS = 60;
+    for (const ix of detectedIntersections) {
+      ix.hasSignal = signalNodes.some(
+        sn => Math.hypot((ix.lat - sn.lat) * 111320, (ix.lng - sn.lng) * 111320 * Math.cos(ix.lat * Math.PI / 180)) <= SIGNAL_RADIUS
+      );
+    }
+
     points = deduplicatePoints([...points, ...detectedIntersections]);
   }
 
@@ -229,5 +238,9 @@ export async function browserScan({ area, categories, boundary = null, options =
     points,
     roads,
     cameras,
+    // Raw data kept for camera recomputation when user overrides intersection type/signal
+    rawIntersections: detectedIntersections,
+    rawWays: rawRoads,
+    rawSignalNodes: signalNodes,
   };
 }

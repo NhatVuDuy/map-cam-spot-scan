@@ -67,18 +67,84 @@ if (typeof document !== "undefined" && !document.getElementById("cam-popup-style
   document.head.appendChild(s);
 }
 
-// ─── Popup HTML builder ───────────────────────────────────────────────────────
+// ─── Block type helpers ───────────────────────────────────────────────────────
+
+const BLOCK_META = {
+  quad_signal:    { label: "CAM2.2 — Ngã4 + đèn",       color: "#FBBF24" },
+  quad_nosignal:  { label: "CAM2.3 — Ngã4 không đèn",    color: "#FB923C" },
+  tri_signal:     { label: "CAM2 — Ngã3 + đèn",          color: "#FBBF24" },
+  tri_nosignal:   { label: "CAM2.1 — Ngã3 không đèn",    color: "#FB923C" },
+  alley:          { label: "CAM Hẻm",                     color: "#34D399" },
+  minor:          { label: "Không có cam",                color: "#94a3b8" },
+};
+
+function blockKey(shape, hasSignal) {
+  if (shape === "quad")  return hasSignal ? "quad_signal"  : "quad_nosignal";
+  if (shape === "tri")   return hasSignal ? "tri_signal"   : "tri_nosignal";
+  if (shape === "alley") return "alley";
+  return "minor";
+}
+
+// ─── Intersection popup HTML ──────────────────────────────────────────────────
+
+function buildIntersectionPopupHTML({ props, distFmt }) {
+  const shape     = props.intersectionShape || "minor";
+  const hasSignal = props.hasSignal === true || props.hasSignal === "true";
+  const bk        = BLOCK_META[blockKey(shape, hasSignal)];
+
+  return `
+    <div style="min-width:220px;font-family:system-ui,sans-serif">
+      <div style="padding:0.65rem 0.85rem 0.5rem;border-bottom:1px solid #1e3354">
+        <div style="font-size:0.88rem;font-weight:700;color:#f1f5f9;margin-bottom:0.3rem">${props.name || "Giao lộ"}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+          <span style="font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${bk.color}20;border:1px solid ${bk.color}44;color:${bk.color};font-weight:600">${bk.label}</span>
+          ${hasSignal ? `<span style="font-size:0.7rem;padding:2px 8px;border-radius:100px;background:#FBBF2420;border:1px solid #FBBF2444;color:#FBBF24">🚦 Đèn</span>` : ""}
+        </div>
+      </div>
+      <div style="padding:0.55rem 0.85rem;display:flex;flex-direction:column;gap:0.35rem">
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem">
+          <span style="color:#64748b">Cách tâm quét</span>
+          <strong style="color:#38BDF8">${distFmt}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem">
+          <span style="color:#64748b">Cấp đường</span>
+          <span style="color:#94a3b8">${props.roadClass ?? "—"}</span>
+        </div>
+        <div style="font-size:0.7rem;color:#64748b;margin-top:0.15rem">Loại giao lộ</div>
+        <select data-ix-shape="${props.id}"
+          style="width:100%;padding:4px 6px;background:#0f1f35;border:1px solid #1e3354;border-radius:5px;color:#e2e8f0;font-size:0.75rem;cursor:pointer">
+          <option value="quad"  ${shape === "quad"  ? "selected" : ""}>■ Ngã tư đường lớn</option>
+          <option value="tri"   ${shape === "tri"   ? "selected" : ""}>▲ Ngã ba đường lớn</option>
+          <option value="alley" ${shape === "alley" ? "selected" : ""}>▬ Đầu hẻm</option>
+          <option value="minor" ${shape === "minor" ? "selected" : ""}>· Giao cắt nhỏ</option>
+        </select>
+        <button data-ix-signal="${props.id}" data-ix-signal-cur="${hasSignal}"
+          style="width:100%;padding:5px 0;margin-top:2px;background:${hasSignal ? "#FBBF2418" : "#1e3354"};border:1px solid ${hasSignal ? "#FBBF2444" : "#334155"};border-radius:6px;color:${hasSignal ? "#FBBF24" : "#94a3b8"};font-size:0.75rem;font-weight:600;cursor:pointer">
+          ${hasSignal ? "🚦 Có đèn — Bấm để tắt" : "⭕ Không đèn — Bấm để bật"}
+        </button>
+      </div>
+      <div style="padding:0.4rem 0.85rem 0.65rem">
+        <button data-delete-id="${props.id}"
+          style="width:100%;padding:5px 0;background:#F8717118;border:1px solid #F8717144;border-radius:6px;color:#F87171;font-size:0.75rem;font-weight:600;cursor:pointer">
+          🗑 Xóa điểm này
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Regular POI popup HTML ───────────────────────────────────────────────────
+
 function buildPopupHTML({ props, cat, distFmt, score }) {
-  const lat = props.lat != null ? Number(props.lat).toFixed(6) : "—";
-  const lon = props.lon != null ? Number(props.lon).toFixed(6)
-            : props.lng != null ? Number(props.lng).toFixed(6) : "—";
-  const name = props.name || props.id || "—";
+  const lat   = props.lat  != null ? Number(props.lat).toFixed(6) : "—";
+  const lon   = props.lon  != null ? Number(props.lon).toFixed(6)
+              : props.lng  != null ? Number(props.lng).toFixed(6) : "—";
+  const name  = props.name || props.id || "—";
   const color = cat?.color || "#94a3b8";
   const label = cat?.label || props.category || "—";
 
   return `
     <div style="min-width:200px;font-family:system-ui,sans-serif">
-      <!-- header -->
       <div style="padding:0.65rem 0.85rem 0.5rem;border-bottom:1px solid #1e3354">
         <div style="font-size:0.88rem;font-weight:700;color:#f1f5f9;margin-bottom:0.25rem;line-height:1.3">${name}</div>
         <span style="display:inline-flex;align-items:center;gap:5px;font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${color}20;border:1px solid ${color}44;color:${color};font-weight:600">
@@ -86,7 +152,6 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
           ${label}
         </span>
       </div>
-      <!-- body -->
       <div style="padding:0.55rem 0.85rem;display:flex;flex-direction:column;gap:0.3rem">
         <div style="display:flex;justify-content:space-between;font-size:0.78rem">
           <span style="color:#64748b">Cách tâm quét</span>
@@ -98,18 +163,17 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
         </div>
         ${score != null ? `<div style="display:flex;justify-content:space-between;font-size:0.78rem"><span style="color:#64748b">Điểm ưu tiên</span><strong style="color:#FBBF24">★ ${score}</strong></div>` : ""}
       </div>
-      <!-- delete button -->
       <div style="padding:0.4rem 0.85rem 0.65rem">
-        <button
-          data-delete-id="${props.id}"
-          style="width:100%;padding:5px 0;background:#F8717118;border:1px solid #F8717144;border-radius:6px;color:#F87171;font-size:0.75rem;font-weight:600;cursor:pointer"
-        >🗑 Xóa điểm này</button>
+        <button data-delete-id="${props.id}"
+          style="width:100%;padding:5px 0;background:#F8717118;border:1px solid #F8717144;border-radius:6px;color:#F87171;font-size:0.75rem;font-weight:600;cursor:pointer">
+          🗑 Xóa điểm này
+        </button>
       </div>
     </div>
   `;
 }
 
-// ─── Camera icons via canvas ImageData (synchronous, no fetch needed) ────────
+// ─── Camera icons (canvas ImageData, synchronous) ────────────────────────────
 
 const CAM_ICONS = {
   cam1:      { color: "#38BDF8" },
@@ -120,30 +184,37 @@ const CAM_ICONS = {
   cam_alley: { color: "#34D399" },
 };
 
+/**
+ * Camera icon: square base at TOP (= viewing direction), pointed tip at BOTTOM (= inward).
+ * When two cams are back-to-back (opposite bearings), their tips touch and square bases face out.
+ */
 function makeCamImageData(color, size = 28) {
   const canvas = document.createElement("canvas");
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext("2d");
-  const h = size;
+  const s = size;
 
-  // Direction arrow (pointing north/up)
   ctx.fillStyle = color;
   ctx.globalAlpha = 0.95;
-  ctx.beginPath();
-  ctx.moveTo(h * 0.5, 1);
-  ctx.lineTo(h * 0.82, h * 0.42);
-  ctx.lineTo(h * 0.18, h * 0.42);
-  ctx.closePath();
-  ctx.fill();
 
-  // Camera body
-  ctx.fillRect(h * 0.22, h * 0.42, h * 0.56, h * 0.42);
+  // Square body at top — this face = direction of view
+  ctx.fillRect(s * 0.16, 1, s * 0.68, s * 0.56);
 
-  // White lens
+  // White lens in the body
   ctx.fillStyle = "white";
   ctx.globalAlpha = 0.85;
   ctx.beginPath();
-  ctx.arc(h * 0.5, h * 0.65, h * 0.1, 0, Math.PI * 2);
+  ctx.arc(s * 0.5, s * 0.28, s * 0.10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pointed tip at bottom — tips of back-to-back cams touch each other
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.95;
+  ctx.beginPath();
+  ctx.moveTo(s * 0.16, s * 0.56);
+  ctx.lineTo(s * 0.84, s * 0.56);
+  ctx.lineTo(s * 0.50, s - 1);
+  ctx.closePath();
   ctx.fill();
 
   return ctx.getImageData(0, 0, size, size);
@@ -154,8 +225,82 @@ function loadCamIcons(map) {
     try {
       const img = makeCamImageData(color);
       map.addImage(`cam-icon-${type}`, { width: img.width, height: img.height, data: img.data });
-    } catch (e) {
+    } catch {
       // icon won't show but map still works
+    }
+  }
+}
+
+// ─── Intersection shape icons ─────────────────────────────────────────────────
+
+const IX_COLOR = "#FF6B6B"; // intersection category colour
+
+/**
+ * Draw a shape icon for an intersection type.
+ * shape: "quad" (square) | "tri" (triangle) | "alley" (tall rect) | "minor" (small dot)
+ */
+function makeIxImageData(shape, size = 40) {
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const s = size;
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = Math.max(1.5, s * 0.045);
+
+  if (shape === "quad") {
+    // Filled square
+    const pad = s * 0.12;
+    ctx.fillStyle = `${IX_COLOR}cc`;
+    ctx.fillRect(pad, pad, s - 2 * pad, s - 2 * pad);
+    ctx.strokeRect(pad, pad, s - 2 * pad, s - 2 * pad);
+
+  } else if (shape === "tri") {
+    // Equilateral triangle pointing up
+    ctx.fillStyle = `${IX_COLOR}cc`;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.50, s * 0.06);
+    ctx.lineTo(s * 0.94, s * 0.92);
+    ctx.lineTo(s * 0.06, s * 0.92);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+  } else if (shape === "alley") {
+    // Tall narrow rectangle — will be rotated via icon-rotate to point into the alley
+    const w = s * 0.30, h = s * 0.82;
+    const x = (s - w) / 2, y = (s - h) / 2;
+    ctx.fillStyle = `${IX_COLOR}cc`;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    // Small arrowhead at top to indicate alley direction
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(s * 0.50, y - 1);
+    ctx.lineTo(s * 0.50 - 5, y + 9);
+    ctx.lineTo(s * 0.50 + 5, y + 9);
+    ctx.closePath();
+    ctx.fill();
+
+  } else {
+    // "minor" — small hollow circle
+    ctx.strokeStyle = `${IX_COLOR}88`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(s / 2, s / 2, s * 0.22, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  return ctx.getImageData(0, 0, size, size);
+}
+
+function loadIxIcons(map) {
+  for (const shape of ["quad", "tri", "alley", "minor"]) {
+    try {
+      const img = makeIxImageData(shape);
+      map.addImage(`ix-${shape}`, { width: img.width, height: img.height, data: img.data });
+    } catch {
+      // non-fatal
     }
   }
 }
@@ -163,11 +308,12 @@ function loadCamIcons(map) {
 // ─── Main map inner ───────────────────────────────────────────────────────────
 
 function MapViewInner() {
-  const containerRef = useRef(null);
-  const mapRef       = useRef(null);
-  const markerRef    = useRef(null);
-  const popupRef     = useRef(null);
-  const [mapReady, setMapReady] = useState(false); // true after map "load" fires
+  const containerRef  = useRef(null);
+  const mapRef        = useRef(null);
+  const markerRef     = useRef(null);
+  const popupRef      = useRef(null);  // active popup (POI or intersection)
+  const activeIxRef   = useRef(null);  // { id, lngLat } of open intersection popup
+  const [mapReady, setMapReady] = useState(false);
 
   const area          = useScanStore((s) => s.area);
   const points        = useScanStore((s) => s.points);
@@ -181,20 +327,46 @@ function MapViewInner() {
   const setArea       = useScanStore((s) => s.setArea);
   const addPoint      = useScanStore((s) => s.addPoint);
   const removePoint   = useScanStore((s) => s.removePoint);
-  const [ctxMenu, setCtxMenu]         = useState(null); // { x, y, lat, lng }
-  const [confirmDelete, setConfirmDelete] = useState(null); // { id, name }
 
-  // ── Popup delete button handler (delegate via document) ─────────────────────
+  const [ctxMenu, setCtxMenu]         = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  // ── Document event delegation (delete / intersection controls) ───────────────
   useEffect(() => {
-    const handler = (e) => {
-      const btn = e.target.closest("[data-delete-id]");
-      if (!btn) return;
-      const id = btn.getAttribute("data-delete-id");
-      const pt = useScanStore.getState().points.find(p => p.id === id);
-      if (pt) setConfirmDelete({ id: pt.id, name: pt.name });
+    const onClick = (e) => {
+      // Delete button (POI or intersection)
+      const deleteBtn = e.target.closest("[data-delete-id]");
+      if (deleteBtn) {
+        const id = deleteBtn.getAttribute("data-delete-id");
+        const pt = useScanStore.getState().points.find(p => p.id === id);
+        if (pt) setConfirmDelete({ id: pt.id, name: pt.name });
+        return;
+      }
+
+      // Signal toggle button
+      const sigBtn = e.target.closest("[data-ix-signal]");
+      if (sigBtn) {
+        const id  = sigBtn.getAttribute("data-ix-signal");
+        const cur = sigBtn.getAttribute("data-ix-signal-cur") === "true";
+        useScanStore.getState().setIntersectionOverride(id, { hasSignal: !cur });
+        // Popup will refresh via the points useEffect below
+      }
     };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+
+    const onChange = (e) => {
+      // Intersection shape selector
+      const select = e.target.closest("[data-ix-shape]");
+      if (!select) return;
+      const id = select.getAttribute("data-ix-shape");
+      useScanStore.getState().setIntersectionOverride(id, { intersectionShape: select.value });
+    };
+
+    document.addEventListener("click",  onClick);
+    document.addEventListener("change", onChange);
+    return () => {
+      document.removeEventListener("click",  onClick);
+      document.removeEventListener("change", onChange);
+    };
   }, []);
 
   // ── 1. Init map ─────────────────────────────────────────────────────────────
@@ -225,31 +397,34 @@ function MapViewInner() {
     map.addControl(new maplibregl.ScaleControl(), "bottom-right");
 
     map.on("load", () => {
-      // Load camera icons (synchronous canvas draw)
+      // Load all icons synchronously (canvas → ImageData — no async fetch)
       loadCamIcons(map);
+      loadIxIcons(map);
 
       // ── Radius circle ──────────────────────────────────────────────────────
       map.addSource("radius", { type: "geojson", data: circleGeoJSON(area.lat, area.lng, area.radiusM) });
       map.addLayer({ id: "radius-fill", type: "fill",   source: "radius", paint: { "fill-color": "#38BDF8", "fill-opacity": 0.12 } });
       map.addLayer({ id: "radius-line", type: "line",   source: "radius", paint: { "line-color": "#38BDF8", "line-width": 2.5, "line-opacity": 0.9 } });
 
-      // ── Boundary polygon (hành chính) ──────────────────────────────────────
+      // ── Boundary polygon ───────────────────────────────────────────────────
       map.addSource("boundary", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({ id: "boundary-fill", type: "fill", source: "boundary", paint: { "fill-color": "#A78BFA", "fill-opacity": 0.12 } });
-      map.addLayer({ id: "boundary-line", type: "line", source: "boundary", paint: { "line-color": "#A78BFA", "line-width": 2.5, "line-dasharray": [1, 0] } });
+      map.addLayer({ id: "boundary-line", type: "line", source: "boundary", paint: { "line-color": "#A78BFA", "line-width": 2.5 } });
 
       // ── Roads ──────────────────────────────────────────────────────────────
       map.addSource("roads", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({ id: "road-layer", type: "line", source: "roads", paint: { "line-color": "#94a3b8", "line-width": 1, "line-opacity": 0.45 } });
 
-      // ── Points ─────────────────────────────────────────────────────────────
+      // ── Points (POIs only, intersections excluded) ─────────────────────────
       map.addSource("points", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
 
-      // Shadow (halo under each point)
+      const poiFilter = ["!=", ["get", "category"], "intersection"];
+
       map.addLayer({
         id: "points-halo",
         type: "circle",
         source: "points",
+        filter: poiFilter,
         paint: {
           "circle-color": ["get", "color"],
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 9, 16, 18],
@@ -262,31 +437,16 @@ function MapViewInner() {
         id: "points-circle",
         type: "circle",
         source: "points",
+        filter: poiFilter,
         paint: {
           "circle-color": ["get", "color"],
-          // Intersection markers sized by roadClass; others match POI size
-          "circle-radius": [
-            "interpolate", ["linear"], ["zoom"],
-            10,
-            ["case",
-              ["==", ["get", "category"], "intersection"],
-              ["step", ["coalesce", ["get", "roadClass"], 0], 2, 1, 3, 2, 4, 3, 6, 4, 7, 5, 9],
-              4
-            ],
-            16,
-            ["case",
-              ["==", ["get", "category"], "intersection"],
-              ["step", ["coalesce", ["get", "roadClass"], 0], 4, 1, 6, 2, 8, 3, 12, 4, 15, 5, 18],
-              10
-            ],
-          ],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4, 16, 10],
           "circle-opacity": 0.95,
           "circle-stroke-width": 2,
           "circle-stroke-color": "#ffffff",
         },
       });
 
-      // Highlight ring for selected point
       map.addLayer({
         id: "points-selected",
         type: "circle",
@@ -304,6 +464,7 @@ function MapViewInner() {
         id: "points-label",
         type: "symbol",
         source: "points",
+        filter: poiFilter,
         minzoom: 14,
         layout: {
           "text-field": ["get", "name"],
@@ -314,6 +475,74 @@ function MapViewInner() {
         },
         paint: {
           "text-color": "#f1f5f9",
+          "text-halo-color": "#0f172a",
+          "text-halo-width": 1.5,
+        },
+      });
+
+      // ── Intersection shape icons ───────────────────────────────────────────
+      // Separate symbol layer so intersections get shape icons, not circles.
+      const ixFilter = ["==", ["get", "category"], "intersection"];
+
+      map.addLayer({
+        id: "intersections-symbol",
+        type: "symbol",
+        source: "points",
+        filter: ixFilter,
+        layout: {
+          "icon-image": ["concat", "ix-", ["coalesce", ["get", "intersectionShape"], "minor"]],
+          // Size by road class: class 1→0.55, 2→0.75, 3→0.90, 4→1.05, 5→1.20
+          "icon-size": [
+            "interpolate", ["linear"], ["zoom"],
+            10,
+            ["step", ["coalesce", ["get", "roadClass"], 0], 0.35, 1, 0.45, 2, 0.55, 3, 0.65, 4, 0.75, 5, 0.85],
+            16,
+            ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
+          ],
+          // Rotate the alley rectangle to point toward the alley arm
+          "icon-rotate": [
+            "case",
+            ["==", ["coalesce", ["get", "intersectionShape"], "minor"], "alley"],
+            ["coalesce", ["get", "alleyBearing"], 0],
+            0,
+          ],
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      });
+
+      // Traffic signal dot: yellow filled circle at the centre of signal intersections
+      map.addLayer({
+        id: "intersections-signal",
+        type: "circle",
+        source: "points",
+        filter: ["all", ixFilter, ["==", ["get", "hasSignal"], true]],
+        paint: {
+          "circle-color": "#FBBF24",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 6],
+          "circle-opacity": 1,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "#0d1829",
+        },
+      });
+
+      // Label for intersections (shown at higher zoom)
+      map.addLayer({
+        id: "intersections-label",
+        type: "symbol",
+        source: "points",
+        filter: ixFilter,
+        minzoom: 15,
+        layout: {
+          "text-field": ["get", "name"],
+          "text-size": 10,
+          "text-offset": [0, 1.6],
+          "text-anchor": "top",
+          "text-optional": true,
+        },
+        paint: {
+          "text-color": "#FF6B6B",
           "text-halo-color": "#0f172a",
           "text-halo-width": 1.5,
         },
@@ -335,14 +564,39 @@ function MapViewInner() {
         },
       });
 
-      // Click popup
-      map.on("click", "points-circle", (e) => {
-        const props = e.features[0].properties;
-        const cat = CATEGORIES[props.category];
+      // ── Click: intersection shape icon ─────────────────────────────────────
+      map.on("click", "intersections-symbol", (e) => {
+        const props   = e.features[0].properties;
         const distFmt = props.distanceM >= 1000
           ? `${(props.distanceM / 1000).toFixed(2)} km`
           : `${props.distanceM} m`;
-        new maplibregl.Popup({ offset: 12, className: "cam-popup" })
+
+        if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+        activeIxRef.current = { id: props.id, lngLat: e.lngLat };
+
+        popupRef.current = new maplibregl.Popup({ offset: 12, className: "cam-popup", maxWidth: "260px" })
+          .setLngLat(e.lngLat)
+          .setHTML(buildIntersectionPopupHTML({ props, distFmt }))
+          .addTo(map);
+
+        popupRef.current.on("close", () => {
+          popupRef.current = null;
+          activeIxRef.current = null;
+        });
+      });
+      map.on("mouseenter", "intersections-symbol", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "intersections-symbol", () => { map.getCanvas().style.cursor = ""; });
+
+      // ── Click: POI circle ──────────────────────────────────────────────────
+      map.on("click", "points-circle", (e) => {
+        const props   = e.features[0].properties;
+        const cat     = CATEGORIES[props.category];
+        const distFmt = props.distanceM >= 1000
+          ? `${(props.distanceM / 1000).toFixed(2)} km`
+          : `${props.distanceM} m`;
+        if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+        activeIxRef.current = null;
+        popupRef.current = new maplibregl.Popup({ offset: 12, className: "cam-popup" })
           .setLngLat(e.lngLat)
           .setHTML(buildPopupHTML({ props, cat, distFmt }))
           .addTo(map);
@@ -370,7 +624,6 @@ function MapViewInner() {
 
       markerRef.current = marker;
 
-      // Right-click context menu
       map.on("contextmenu", (e) => {
         e.preventDefault?.();
         const { x, y } = e.point;
@@ -378,7 +631,6 @@ function MapViewInner() {
         setCtxMenu({ x: rect.left + x, y: rect.top + y, lat: e.lngLat.lat, lng: e.lngLat.lng });
       });
 
-      // Signal React that map is ready — this triggers all data-sync effects
       setMapReady(true);
     });
 
@@ -386,32 +638,24 @@ function MapViewInner() {
     return () => { map.remove(); mapRef.current = null; markerRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── 2. Sync radius circle + marker position when area changes ──────────────
+  // ── 2. Sync radius circle + marker ──────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
-    const map = mapRef.current;
-
-    map.getSource("radius")?.setData(circleGeoJSON(area.lat, area.lng, area.radiusM));
-
-    if (markerRef.current) {
-      markerRef.current.setLngLat([area.lng, area.lat]);
-    }
+    mapRef.current.getSource("radius")?.setData(circleGeoJSON(area.lat, area.lng, area.radiusM));
+    if (markerRef.current) markerRef.current.setLngLat([area.lng, area.lat]);
   }, [mapReady, area.lat, area.lng, area.radiusM]);
 
-  // ── 2b. Sync boundary polygon — show polygon, hide radius circle ──────────
+  // ── 2b. Sync boundary polygon ────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
 
     if (boundary?.geometry) {
-      // Show polygon
       map.getSource("boundary")?.setData(boundary);
       map.setLayoutProperty("boundary-fill", "visibility", "visible");
       map.setLayoutProperty("boundary-line", "visibility", "visible");
-      // Hide radius (polygon is the authoritative boundary)
-      map.setLayoutProperty("radius-fill", "visibility", "none");
-      map.setLayoutProperty("radius-line", "visibility", "none");
-      // Fly to boundary
+      map.setLayoutProperty("radius-fill",   "visibility", "none");
+      map.setLayoutProperty("radius-line",   "visibility", "none");
       const coords = boundary.geometry.type === "Polygon"
         ? boundary.geometry.coordinates[0]
         : boundary.geometry.coordinates[0][0];
@@ -422,30 +666,28 @@ function MapViewInner() {
         { padding: 60, maxZoom: 16, duration: 700 }
       );
     } else {
-      // Clear polygon, show radius again
       map.getSource("boundary")?.setData({ type: "FeatureCollection", features: [] });
       map.setLayoutProperty("boundary-fill", "visibility", "none");
       map.setLayoutProperty("boundary-line", "visibility", "none");
-      map.setLayoutProperty("radius-fill", "visibility", "visible");
-      map.setLayoutProperty("radius-line", "visibility", "visible");
+      map.setLayoutProperty("radius-fill",   "visibility", "visible");
+      map.setLayoutProperty("radius-line",   "visibility", "visible");
     }
   }, [mapReady, boundary]);
 
   // ── 3. Update roads ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
-    const fc = {
+    mapRef.current.getSource("roads")?.setData({
       type: "FeatureCollection",
       features: roads.map((r) => ({
         type: "Feature",
         geometry: { type: "LineString", coordinates: r.geometry },
         properties: { highway: r.highway },
       })),
-    };
-    mapRef.current.getSource("roads")?.setData(fc);
+    });
   }, [mapReady, roads]);
 
-  // ── 4. Update points ────────────────────────────────────────────────────────
+  // ── 4. Update points (POIs + intersections in one source) ───────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const fc = {
@@ -461,26 +703,44 @@ function MapViewInner() {
           score: p.score ?? 0,
           color: CATEGORIES[p.category]?.color || "#888888",
           roadClass: p.roadClass ?? null,
+          // Intersection-specific
+          intersectionShape: p.intersectionShape ?? null,
+          alleyBearing:      p.alleyBearing ?? 0,
+          hasSignal:         p.hasSignal === true,
           lat: p.lat,
           lon: p.lng,
         },
       })),
     };
     mapRef.current.getSource("points")?.setData(fc);
+
+    // Refresh intersection popup if one is open (user changed shape/signal)
+    if (activeIxRef.current && popupRef.current) {
+      const { id } = activeIxRef.current;
+      const pt = points.find(p => p.id === id);
+      if (pt) {
+        const distFmt = pt.distanceM >= 1000
+          ? `${(pt.distanceM / 1000).toFixed(2)} km`
+          : `${pt.distanceM} m`;
+        popupRef.current.setHTML(buildIntersectionPopupHTML({
+          props: { ...pt, lat: pt.lat, lon: pt.lng },
+          distFmt,
+        }));
+      }
+    }
   }, [mapReady, points]);
 
   // ── 4b. Update cameras ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
-    const fc = {
+    mapRef.current.getSource("cameras")?.setData({
       type: "FeatureCollection",
       features: cameras.map((c) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [c.lng, c.lat] },
         properties: { type: c.type, bearing: c.bearing },
       })),
-    };
-    mapRef.current.getSource("cameras")?.setData(fc);
+    });
   }, [mapReady, cameras]);
 
   // ── 4c. Toggle camera visibility ────────────────────────────────────────────
@@ -489,24 +749,29 @@ function MapViewInner() {
     mapRef.current.setLayoutProperty("cameras-symbol", "visibility", showCameras ? "visible" : "none");
   }, [mapReady, showCameras]);
 
-  // ── 5. Update filter opacity ────────────────────────────────────────────────
+  // ── 5. Update filter opacity ─────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
-    const opacity = filter
+    const poiOpacity = filter
       ? ["case", ["==", ["get", "category"], filter], 0.95, 0.1]
       : 0.95;
-    map.setPaintProperty("points-circle", "circle-opacity", opacity);
-    map.setPaintProperty("points-halo",   "circle-opacity", filter ? ["case", ["==", ["get", "category"], filter], 0.22, 0.03] : 0.22);
-    map.setPaintProperty("points-label",  "text-opacity",   filter ? ["case", ["==", ["get", "category"], filter], 1, 0.1] : 1);
+    const ixOpacity = filter === "intersection" ? 1 : (filter ? 0.15 : 1);
+    map.setPaintProperty("points-circle",       "circle-opacity", poiOpacity);
+    map.setPaintProperty("points-halo",         "circle-opacity", filter ? ["case", ["==", ["get", "category"], filter], 0.22, 0.03] : 0.22);
+    map.setPaintProperty("points-label",        "text-opacity",   filter ? ["case", ["==", ["get", "category"], filter], 1, 0.1] : 1);
+    map.setPaintProperty("intersections-signal","circle-opacity", ixOpacity);
+    map.setLayoutProperty("intersections-symbol", "visibility", ixOpacity > 0 ? "visible" : "none");
   }, [mapReady, filter]);
 
-  // ── 6. Highlight selected point ─────────────────────────────────────────────
+  // ── 6. Highlight selected point ──────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
 
-    if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+    if (popupRef.current && !activeIxRef.current) {
+      popupRef.current.remove(); popupRef.current = null;
+    }
 
     if (!selectedPoint) {
       map.setFilter("points-selected", ["==", ["get", "id"], "__none__"]);
@@ -516,14 +781,18 @@ function MapViewInner() {
     map.setFilter("points-selected", ["==", ["get", "id"], selectedPoint.id]);
     map.flyTo({ center: [selectedPoint.lng, selectedPoint.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
 
-    const cat = CATEGORIES[selectedPoint.category];
-    const distFmt = selectedPoint.distanceM >= 1000
-      ? `${(selectedPoint.distanceM / 1000).toFixed(2)} km`
-      : `${selectedPoint.distanceM} m`;
-    popupRef.current = new maplibregl.Popup({ offset: 14, closeButton: true, className: "cam-popup" })
-      .setLngLat([selectedPoint.lng, selectedPoint.lat])
-      .setHTML(buildPopupHTML({ props: { ...selectedPoint, lat: selectedPoint.lat, lon: selectedPoint.lng }, cat, distFmt, score: selectedPoint.score }))
-      .addTo(map);
+    if (selectedPoint.category !== "intersection") {
+      const cat     = CATEGORIES[selectedPoint.category];
+      const distFmt = selectedPoint.distanceM >= 1000
+        ? `${(selectedPoint.distanceM / 1000).toFixed(2)} km`
+        : `${selectedPoint.distanceM} m`;
+      if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+      activeIxRef.current = null;
+      popupRef.current = new maplibregl.Popup({ offset: 14, closeButton: true, className: "cam-popup" })
+        .setLngLat([selectedPoint.lng, selectedPoint.lat])
+        .setHTML(buildPopupHTML({ props: { ...selectedPoint, lat: selectedPoint.lat, lon: selectedPoint.lng }, cat, distFmt, score: selectedPoint.score }))
+        .addTo(map);
+    }
   }, [mapReady, selectedPoint]);
 
   // ── 7. Fit bbox after scan ───────────────────────────────────────────────────
@@ -535,7 +804,6 @@ function MapViewInner() {
     );
   }, [mapReady, bbox]);
 
-  // ── Return to area ───────────────────────────────────────────────────────────
   const handleReturn = () => {
     if (!mapRef.current) return;
     const zoom = area.radiusM <= 500 ? 15 : area.radiusM <= 2000 ? 14 : area.radiusM <= 5000 ? 13 : 12;
@@ -554,6 +822,7 @@ function MapViewInner() {
           onConfirm={() => {
             removePoint(confirmDelete.id);
             if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+            activeIxRef.current = null;
             setConfirmDelete(null);
           }}
           onCancel={() => setConfirmDelete(null)}

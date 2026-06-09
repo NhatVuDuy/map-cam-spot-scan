@@ -35,5 +35,7 @@ export function useScanner() {
     setFilter: store.setFilter,
     setHoveredPoint: store.setHoveredPoint,
     setSelectedPoint: store.setSelectedPoint,
+    intersectionOverrides: store.intersectionOverrides,
+    setIntersectionOverride: store.setIntersectionOverride,
   };
 }

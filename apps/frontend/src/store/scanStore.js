@@ -1,8 +1,16 @@
 import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
+import { planAllCameras } from "../algorithms/cameraPlacement.js";
 import { CATEGORIES } from "../utils/categories.js";
 
 const DEFAULT_CATEGORIES = Object.keys(CATEGORIES);
+
+const SHAPE_LABEL = {
+  quad:  "Ngã tư",
+  tri:   "Ngã ba",
+  alley: "Đầu hẻm",
+  minor: "Giao cắt",
+};
 
 const useScanStore = create((set, get) => ({
   // --- Input ---
@@ -18,6 +26,14 @@ const useScanStore = create((set, get) => ({
   cameras: [],
   bbox: null,
   stats: {},
+
+  // --- Raw intersection data (kept for camera recomputation) ---
+  rawIntersections: [],
+  rawWays: [],
+  rawSignalNodes: [],
+
+  // --- Per-intersection user overrides: id → { intersectionShape?, hasSignal? } ---
+  intersectionOverrides: {},
 
   // --- UI ---
   loading: false,
@@ -51,9 +67,47 @@ const useScanStore = create((set, get) => ({
     set({ points, stats, selectedPoint: sel?.id === id ? null : sel });
   },
 
+  /**
+   * Override intersection shape and/or signal, then recompute cameras.
+   * `override` can contain: { intersectionShape?, hasSignal? }
+   */
+  setIntersectionOverride: (id, override) => {
+    const prevOverrides = get().intersectionOverrides;
+    const newEntry = { ...(prevOverrides[id] || {}), ...override };
+    const newOverrides = { ...prevOverrides, [id]: newEntry };
+
+    // Patch points[] so the map layer and popup reflect the change immediately
+    const points = get().points.map(p => {
+      if (p.id !== id || p.category !== "intersection") return p;
+      const patched = { ...p, ...newEntry };
+      if (newEntry.intersectionShape) {
+        patched.name = SHAPE_LABEL[newEntry.intersectionShape] || p.name;
+      }
+      return patched;
+    });
+
+    set({ intersectionOverrides: newOverrides, points });
+
+    // Recompute cameras using overridden intersection data
+    const { rawIntersections, rawWays, rawSignalNodes } = get();
+    if (rawIntersections.length > 0) {
+      const enriched = rawIntersections.map(ix =>
+        newOverrides[ix.id] ? { ...ix, ...newOverrides[ix.id] } : ix
+      );
+      const cameras = planAllCameras({ intersections: enriched, ways: rawWays, signalNodes: rawSignalNodes });
+      set({ cameras });
+    }
+  },
+
   runScan: async () => {
     const { area, categories, boundary, maxResults } = get();
-    set({ loading: true, error: null, progress: "Đang khởi động...", points: [], roads: [], selectedPoint: null });
+    set({
+      loading: true, error: null, progress: "Đang khởi động...",
+      points: [], roads: [], cameras: [],
+      rawIntersections: [], rawWays: [], rawSignalNodes: [],
+      intersectionOverrides: {},
+      selectedPoint: null,
+    });
 
     try {
       const result = await browserScan(
@@ -62,16 +116,19 @@ const useScanStore = create((set, get) => ({
       );
 
       set({
-        points: result.points || [],
-        roads: result.roads || [],
-        cameras: result.cameras || [],
-        bbox: result.meta?.bbox || null,
-        stats: result.meta?.byCategory || {},
-        loading: false,
+        points:           result.points || [],
+        roads:            result.roads  || [],
+        cameras:          result.cameras || [],
+        rawIntersections: result.rawIntersections || [],
+        rawWays:          result.rawWays || [],
+        rawSignalNodes:   result.rawSignalNodes || [],
+        bbox:             result.meta?.bbox || null,
+        stats:            result.meta?.byCategory || {},
+        loading:          false,
         progress: (() => {
           const found = result.meta?.totalFound || 0;
           const total = result.meta?.totalBeforeCap || found;
-          const ms = result.meta?.durationMs;
+          const ms    = result.meta?.durationMs;
           return total > found
             ? `Hiển thị ${found}/${total} địa điểm (${ms}ms) — tăng giới hạn để xem thêm`
             : `Tìm thấy ${found} địa điểm (${ms}ms)`;
@@ -84,7 +141,12 @@ const useScanStore = create((set, get) => ({
   },
 
   resetResults: () =>
-    set({ points: [], roads: [], cameras: [], bbox: null, stats: {}, error: null, progress: "", selectedPoint: null }),
+    set({
+      points: [], roads: [], cameras: [], bbox: null, stats: {},
+      rawIntersections: [], rawWays: [], rawSignalNodes: [],
+      intersectionOverrides: {},
+      error: null, progress: "", selectedPoint: null,
+    }),
 
   setFilter: (filter) => set({ filter }),
   setHoveredPoint: (hoveredPoint) => set({ hoveredPoint }),
