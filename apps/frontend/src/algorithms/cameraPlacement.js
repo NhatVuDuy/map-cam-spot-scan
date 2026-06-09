@@ -1,7 +1,7 @@
 import { bearingBetween, offsetPoint, haversineM, segmentLengthM, interpolateAlong } from "../utils/bearing.js";
 
-const LANE_OFFSET_M  = 3.5;   // lateral offset from road centerline
-const CAM_SETBACK_M  = 25;    // distance back from intersection node
+const LANE_OFFSET_M  = 2;     // lateral offset from road centerline
+const CAM_SETBACK_M  = 8;     // distance back from intersection node
 const CAM1_MIN_LEN   = 1000;  // minimum road length for CAM1 (meters)
 const CAM1_INTERVAL  = 3000;  // place CAM1 every N meters
 const SIGNAL_RADIUS  = 20;    // max distance to match a traffic signal node

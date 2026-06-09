@@ -263,19 +263,19 @@ function MapViewInner() {
         source: "points",
         paint: {
           "circle-color": ["get", "color"],
-          // Intersection markers sized by roadClass; others use default size
+          // Intersection markers sized by roadClass; others match POI size
           "circle-radius": [
             "interpolate", ["linear"], ["zoom"],
             10,
             ["case",
               ["==", ["get", "category"], "intersection"],
-              ["*", 0.5, ["coalesce", ["get", "roadClass"], 1]],
+              ["step", ["coalesce", ["get", "roadClass"], 0], 2, 1, 3, 2, 4, 3, 6, 4, 7, 5, 9],
               4
             ],
             16,
             ["case",
               ["==", ["get", "category"], "intersection"],
-              ["*", 1.4, ["coalesce", ["get", "roadClass"], 1]],
+              ["step", ["coalesce", ["get", "roadClass"], 0], 4, 1, 6, 2, 8, 3, 12, 4, 15, 5, 18],
               10
             ],
           ],
