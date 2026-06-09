@@ -268,16 +268,22 @@ function makeIxImageData(shape, size = 40) {
     ctx.stroke();
 
   } else if (shape === "alley") {
-    // Tall narrow rectangle — will be rotated via icon-rotate to point into the alley
-    const w = s * 0.30, h = s * 0.82;
-    const x = (s - w) / 2, y = (s - h) / 2;
+    // Rectangle drawn in the TOP HALF of the canvas only.
+    // The canvas centre (y = s/2) acts as the anchor — placed at the intersection node.
+    // After icon-rotate(alleyBearing), the top of the canvas points into the alley,
+    // so one edge of the rectangle sits exactly at the intersection and the other
+    // extends into the alley.
+    const w = s * 0.32;
+    const h = s * 0.46;          // fills top half with a small gap
+    const x = (s - w) / 2;
+    const y = s * 0.02;          // top edge near top of canvas
     ctx.fillStyle = `${IX_COLOR}cc`;
     ctx.fillRect(x, y, w, h);
     ctx.strokeRect(x, y, w, h);
-    // Small arrowhead at top to indicate alley direction
+    // Arrowhead at top (into alley)
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.moveTo(s * 0.50, y - 1);
+    ctx.moveTo(s * 0.50, y);
     ctx.lineTo(s * 0.50 - 5, y + 9);
     ctx.lineTo(s * 0.50 + 5, y + 9);
     ctx.closePath();
@@ -585,28 +591,25 @@ function MapViewInner() {
         },
       });
 
-      // ── Click: intersection shape icon ─────────────────────────────────────
-      map.on("click", "intersections-symbol", (e) => {
-        const props   = e.features[0].properties;
+      // ── Click: intersection icons (both shape symbols and minor circles) ────
+      const openIxPopup = (props, lngLat) => {
         const distFmt = props.distanceM >= 1000
           ? `${(props.distanceM / 1000).toFixed(2)} km`
           : `${props.distanceM} m`;
-
         if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
-        activeIxRef.current = { id: props.id, lngLat: e.lngLat };
-
+        activeIxRef.current = { id: props.id, lngLat };
         popupRef.current = new maplibregl.Popup({ offset: 12, className: "cam-popup", maxWidth: "260px" })
-          .setLngLat(e.lngLat)
+          .setLngLat(lngLat)
           .setHTML(buildIntersectionPopupHTML({ props, distFmt }))
           .addTo(map);
+        popupRef.current.on("close", () => { popupRef.current = null; activeIxRef.current = null; });
+      };
 
-        popupRef.current.on("close", () => {
-          popupRef.current = null;
-          activeIxRef.current = null;
-        });
-      });
-      map.on("mouseenter", "intersections-symbol", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "intersections-symbol", () => { map.getCanvas().style.cursor = ""; });
+      // Reuse same handler for both symbol and circle layers
+      map.on("click", "intersections-symbol", (e) => openIxPopup(e.features[0].properties, e.lngLat));
+      map.on("click", "intersections-minor",  (e) => openIxPopup(e.features[0].properties, e.lngLat));
+      map.on("mouseenter", "intersections-minor",  () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "intersections-minor",  () => { map.getCanvas().style.cursor = ""; });
 
       // ── Click: POI circle ──────────────────────────────────────────────────
       map.on("click", "points-circle", (e) => {
@@ -713,19 +716,9 @@ function MapViewInner() {
     if (!mapReady || !mapRef.current) return;
     const fc = {
       type: "FeatureCollection",
-      features: points.map((p) => {
-        // Offset the alley rectangle icon toward the alley arm so it visually
-        // sits at the mouth of the alley rather than on the centre of the major road.
-        let displayLat = p.lat, displayLng = p.lng;
-        if (p.intersectionShape === "alley" && p.alleyBearing != null) {
-          const rad    = (p.alleyBearing * Math.PI) / 180;
-          const shiftM = 10;
-          displayLat += (shiftM / 111320) * Math.cos(rad);
-          displayLng += (shiftM / (111320 * Math.cos(p.lat * Math.PI / 180))) * Math.sin(rad);
-        }
-        return ({
+      features: points.map((p) => ({
         type: "Feature",
-        geometry: { type: "Point", coordinates: [displayLng, displayLat] },
+        geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         properties: {
           id: p.id,
           category: p.category,
@@ -741,8 +734,7 @@ function MapViewInner() {
           lat: p.lat,
           lon: p.lng,
         },
-      });
-    }),
+      })),
     };
     mapRef.current.getSource("points")?.setData(fc);
 

@@ -1,66 +1,54 @@
 import { offsetPoint, haversineM, segmentLengthM, interpolateAlong } from "../utils/bearing.js";
 
-const LANE_OFFSET_M = 2;   // lateral offset from road centreline (m)
-const CAM_SETBACK_M = 8;   // distance back from intersection node (m)
-const PAIR_OFFSET_M = 3;   // separation between back-to-back cams (m)
-const CAM1_MIN_LEN  = 1000;
-const CAM1_INTERVAL = 3000;
-const SIGNAL_RADIUS = 60;  // snap radius for traffic signal nodes (m)
-const ALLEY_CLASS   = 0;
+const LANE_OFFSET_M  = 2;    // lateral offset from road centreline (m)
+const CAM_SETBACK_M  = 8;    // setback from intersection node for major road cams (m)
+const CAM1_MIN_LEN   = 1000;
+const CAM1_INTERVAL  = 3000;
+const SIGNAL_RADIUS  = 60;   // snap radius for traffic signal nodes (m)
+const ALLEY_CLASS    = 0;
 
 let _id = 0;
 function nextId(type) { return `cam-${type}-${++_id}`; }
 
-// ─── CAM2 / CAM2.2: major arm WITH traffic signal ─────────────────────────
-// Right lane (inbound side): back-to-back pair, same as no-signal.
-// Left lane (outbound side): 1 cam facing outbound (from intersection toward arm).
+// ─── CAM2 / CAM2.2: major arm WITH traffic signal ──────────────────────────
+// Right lane: 2 cams at the same point (tips touch) — outbound + inbound.
+// Left lane:  1 cam facing outbound.
 function camsMajorWithSignal(intLat, intLng, armBearing, armCount) {
-  const setback  = offsetPoint(intLat, intLng, armBearing, CAM_SETBACK_M);
-  const rightPt  = offsetPoint(setback.lat, setback.lng, (armBearing + 90) % 360, LANE_OFFSET_M);
-  const leftPt   = offsetPoint(setback.lat, setback.lng, (armBearing + 270) % 360, LANE_OFFSET_M);
-  const inbound  = (armBearing + 180) % 360;
-  const type     = armCount >= 4 ? "cam22" : "cam2";
-
-  // Back-to-back pair on right lane (same geometry as no-signal)
-  const camA = offsetPoint(rightPt.lat, rightPt.lng, armBearing, PAIR_OFFSET_M / 2);
-  const camB = offsetPoint(rightPt.lat, rightPt.lng, inbound,    PAIR_OFFSET_M / 2);
-
-  // Extra cam on left lane, facing outbound (from intersection outward)
+  const setback = offsetPoint(intLat, intLng, armBearing, CAM_SETBACK_M);
+  const rightPt = offsetPoint(setback.lat, setback.lng, (armBearing + 90) % 360, LANE_OFFSET_M);
+  const leftPt  = offsetPoint(setback.lat, setback.lng, (armBearing + 270) % 360, LANE_OFFSET_M);
+  const inbound = (armBearing + 180) % 360;
+  const type    = armCount >= 4 ? "cam22" : "cam2";
   return [
-    { ...camA,   bearing: armBearing, type },
-    { ...camB,   bearing: inbound,    type },
-    { ...leftPt, bearing: armBearing, type },
+    { ...rightPt, bearing: armBearing, type }, // outbound, right lane
+    { ...rightPt, bearing: inbound,    type }, // inbound, right lane — tips touch
+    { ...leftPt,  bearing: armBearing, type }, // outbound only, left lane
   ];
 }
 
 // ─── CAM2.1 / CAM2.3: pure major intersection, NO traffic signal ──────────
-// 2 back-to-back cams on the outbound lane — tips touch, bases face outward.
+// 2 cams placed at the same point — tips touch, square bases face outward.
 function camsMajorNoSignal(intLat, intLng, armBearing, armCount) {
-  const setback  = offsetPoint(intLat, intLng, armBearing, CAM_SETBACK_M);
-  const rightPt  = offsetPoint(setback.lat, setback.lng, (armBearing + 90) % 360, LANE_OFFSET_M);
-  const inbound  = (armBearing + 180) % 360;
-
-  const camA = offsetPoint(rightPt.lat, rightPt.lng, armBearing, PAIR_OFFSET_M / 2);
-  const camB = offsetPoint(rightPt.lat, rightPt.lng, inbound,    PAIR_OFFSET_M / 2);
-
-  const type = armCount >= 4 ? "cam23" : "cam21";
+  const setback = offsetPoint(intLat, intLng, armBearing, CAM_SETBACK_M);
+  const rightPt = offsetPoint(setback.lat, setback.lng, (armBearing + 90) % 360, LANE_OFFSET_M);
+  const inbound = (armBearing + 180) % 360;
+  const type    = armCount >= 4 ? "cam23" : "cam21";
   return [
-    { ...camA, bearing: armBearing, type },
-    { ...camB, bearing: inbound,    type },
+    { ...rightPt, bearing: armBearing, type },
+    { ...rightPt, bearing: inbound,    type }, // same point → tips touch at anchor
   ];
 }
 
-// ─── CAM alley: 2 entrance cams at alley mouth ───────────────────────────
+// ─── CAM alley: 2 entrance cams anchored at the alley mouth ──────────────
+// No forward setback — cameras appear right at the intersection icon.
+// Tips touch at the same anchor point; bases face into and out of the alley.
 function camsAlley(intLat, intLng, armBearing) {
-  const setback = offsetPoint(intLat, intLng, armBearing, CAM_SETBACK_M);
+  // Slight lateral offset so the cameras sit on the alley lane, not centre-line
+  const pt      = offsetPoint(intLat, intLng, (armBearing + 90) % 360, LANE_OFFSET_M);
   const inbound = (armBearing + 180) % 360;
-
-  const camA = offsetPoint(setback.lat, setback.lng, armBearing, PAIR_OFFSET_M / 2);
-  const camB = offsetPoint(setback.lat, setback.lng, inbound,    PAIR_OFFSET_M / 2);
-
   return [
-    { ...camA, bearing: armBearing, type: "cam_alley" },
-    { ...camB, bearing: inbound,    type: "cam_alley" },
+    { ...pt, bearing: armBearing, type: "cam_alley" },
+    { ...pt, bearing: inbound,    type: "cam_alley" }, // tips touch at pt
   ];
 }
 
@@ -69,9 +57,9 @@ function camsAlley(intLat, intLng, armBearing) {
  *
  * Uses ix.intersectionShape (pre-computed or user-overridden) and ix.hasSignal.
  *
- *   "quad"  — 4-arm all-major; with signal → CAM2.2, without → CAM2.3 (per arm)
- *   "tri"   — 3-arm all-major; with signal → CAM2,   without → CAM2.1 (per arm)
- *   "alley" — mixed; place entrance cams only on alley arm(s)
+ *   "quad"  — with signal → CAM2.2 (3/arm), without → CAM2.3 (2/arm)
+ *   "tri"   — with signal → CAM2   (3/arm), without → CAM2.1 (2/arm)
+ *   "alley" — entrance cams on alley arm(s) only
  *   "minor" — skip
  */
 export function planCamerasForIntersections(intersections, signalNodes) {
@@ -83,14 +71,12 @@ export function planCamerasForIntersections(intersections, signalNodes) {
     const armClasses = ix.armRoadClasses ?? ix.armBearings.map(() => ix.roadClass);
     const shape      = ix.intersectionShape || "minor";
 
-    // Respect pre-computed / user-overridden hasSignal; fall back to spatial lookup
     const hasSignal = ix.hasSignal !== undefined
       ? !!ix.hasSignal
       : signalNodes.some(sn => haversineM(ix.lat, ix.lng, sn.lat, sn.lng) <= SIGNAL_RADIUS);
 
     if (shape === "minor") continue;
 
-    // Cam type variant is driven by shape, not physical arm count, so user can override
     const effectiveArmCount = shape === "quad" ? 4 : shape === "tri" ? 3 : ix.armCount;
 
     for (let i = 0; i < ix.armBearings.length; i++) {
@@ -152,7 +138,7 @@ export function planCamerasForRoads(ways) {
 }
 
 export function planAllCameras({ intersections, ways, signalNodes }) {
-  _id = 0; // reset counter on each full replan so IDs stay stable
+  _id = 0;
   const cam1 = planCamerasForRoads(ways);
   const cam2 = planCamerasForIntersections(intersections, signalNodes);
   return [...cam1, ...cam2].slice(0, 5000);
