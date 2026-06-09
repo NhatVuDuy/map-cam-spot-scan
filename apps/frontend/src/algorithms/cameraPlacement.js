@@ -39,16 +39,18 @@ function camsMajorNoSignal(intLat, intLng, armBearing, armCount) {
   ];
 }
 
-// ─── CAM alley: 2 entrance cams anchored at the alley mouth ──────────────
-// No forward setback — cameras appear right at the intersection icon.
-// Tips touch at the same anchor point; bases face into and out of the alley.
+// ─── CAM alley: 2 entrance cams placed inside the alley mouth ────────────
+// Offset a few metres INTO the alley (along armBearing) so the icons appear
+// inside the alley, not on the major road.  With icon-anchor:"bottom" in the
+// map layer both tips meet at the same anchor; one body faces out, one faces in.
+const CAM_ALLEY_DEPTH_M = 5; // metres inside alley from the intersection node
+
 function camsAlley(intLat, intLng, armBearing) {
-  // Slight lateral offset so the cameras sit on the alley lane, not centre-line
-  const pt      = offsetPoint(intLat, intLng, (armBearing + 90) % 360, LANE_OFFSET_M);
+  const pt      = offsetPoint(intLat, intLng, armBearing, CAM_ALLEY_DEPTH_M);
   const inbound = (armBearing + 180) % 360;
   return [
-    { ...pt, bearing: armBearing, type: "cam_alley" },
-    { ...pt, bearing: inbound,    type: "cam_alley" }, // tips touch at pt
+    { ...pt, bearing: armBearing, type: "cam_alley" }, // facing outbound (exit)
+    { ...pt, bearing: inbound,    type: "cam_alley" }, // facing inbound  (entry)
   ];
 }
 

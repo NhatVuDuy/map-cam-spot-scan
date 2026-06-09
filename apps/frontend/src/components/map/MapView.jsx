@@ -584,6 +584,7 @@ function MapViewInner() {
         layout: {
           "icon-image": ["concat", "cam-icon-", ["get", "type"]],
           "icon-size": 0.85,
+          "icon-anchor": "bottom",      // tip (canvas bottom) = anchor = where back-to-back tips touch
           "icon-rotate": ["get", "bearing"],
           "icon-rotation-alignment": "map",
           "icon-allow-overlap": true,
