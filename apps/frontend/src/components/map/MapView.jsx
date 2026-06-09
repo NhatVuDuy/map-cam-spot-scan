@@ -109,6 +109,43 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
   `;
 }
 
+// ─── Camera SVG icons (pointing north = bearing 0, rotated by icon-rotate) ────
+
+const CAM_ICONS = {
+  cam1:  { color: "#38BDF8", label: "CAM1" },
+  cam2:  { color: "#FBBF24", label: "CAM2" },
+  cam22: { color: "#FBBF24", label: "CAM2.2" },
+  cam21: { color: "#FB923C", label: "CAM2.1" },
+  cam23: { color: "#FB923C", label: "CAM2.3" },
+};
+
+function buildCamSVG(color) {
+  // Camera icon pointing upward (north). Will be rotated by icon-rotate.
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <polygon points="14,2 20,12 8,12" fill="${color}" opacity="0.9"/>
+    <rect x="8" y="12" width="12" height="8" rx="2" fill="${color}"/>
+    <circle cx="14" cy="16" r="2.5" fill="white" opacity="0.8"/>
+  </svg>`;
+}
+
+async function loadCamIcons(map) {
+  for (const [type, { color }] of Object.entries(CAM_ICONS)) {
+    const svg = buildCamSVG(color);
+    const blob = new Blob([svg], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    await new Promise((resolve) => {
+      map.loadImage(url, (err, img) => {
+        if (!err && img) map.addImage(`cam-icon-${type}`, img);
+        URL.revokeObjectURL(url);
+        resolve();
+      });
+    });
+  }
+}
+
+// Road class → intersection circle radius (px at zoom 14)
+const CLASS_RADIUS = [4, 5, 7, 9, 11, 14]; // index 0-5
+
 // ─── Main map inner ───────────────────────────────────────────────────────────
 
 function MapViewInner() {
@@ -121,6 +158,8 @@ function MapViewInner() {
   const area          = useScanStore((s) => s.area);
   const points        = useScanStore((s) => s.points);
   const roads         = useScanStore((s) => s.roads);
+  const cameras       = useScanStore((s) => s.cameras);
+  const showCameras   = useScanStore((s) => s.showCameras);
   const bbox          = useScanStore((s) => s.bbox);
   const filter        = useScanStore((s) => s.filter);
   const selectedPoint = useScanStore((s) => s.selectedPoint);
@@ -170,7 +209,10 @@ function MapViewInner() {
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     map.addControl(new maplibregl.ScaleControl(), "bottom-right");
 
-    map.on("load", () => {
+    map.on("load", async () => {
+      // Load camera SVG icons
+      await loadCamIcons(map);
+
       // ── Radius circle ──────────────────────────────────────────────────────
       map.addSource("radius", { type: "geojson", data: circleGeoJSON(area.lat, area.lng, area.radiusM) });
       map.addLayer({ id: "radius-fill", type: "fill",   source: "radius", paint: { "fill-color": "#38BDF8", "fill-opacity": 0.12 } });
@@ -207,7 +249,22 @@ function MapViewInner() {
         source: "points",
         paint: {
           "circle-color": ["get", "color"],
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 5, 16, 11],
+          // Intersection markers sized by roadClass; others use default size
+          "circle-radius": [
+            "interpolate", ["linear"], ["zoom"],
+            10,
+            ["case",
+              ["==", ["get", "category"], "intersection"],
+              ["*", 0.5, ["coalesce", ["get", "roadClass"], 1]],
+              4
+            ],
+            16,
+            ["case",
+              ["==", ["get", "category"], "intersection"],
+              ["*", 1.4, ["coalesce", ["get", "roadClass"], 1]],
+              10
+            ],
+          ],
           "circle-opacity": 0.95,
           "circle-stroke-width": 2,
           "circle-stroke-color": "#ffffff",
@@ -244,6 +301,22 @@ function MapViewInner() {
           "text-color": "#f1f5f9",
           "text-halo-color": "#0f172a",
           "text-halo-width": 1.5,
+        },
+      });
+
+      // ── Camera placement layer ─────────────────────────────────────────────
+      map.addSource("cameras", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: "cameras-symbol",
+        type: "symbol",
+        source: "cameras",
+        layout: {
+          "icon-image": ["concat", "cam-icon-", ["get", "type"]],
+          "icon-size": 0.85,
+          "icon-rotate": ["get", "bearing"],
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
         },
       });
 
@@ -372,6 +445,7 @@ function MapViewInner() {
           distanceM: p.distanceM,
           score: p.score ?? 0,
           color: CATEGORIES[p.category]?.color || "#888888",
+          roadClass: p.roadClass ?? null,
           lat: p.lat,
           lon: p.lng,
         },
@@ -379,6 +453,26 @@ function MapViewInner() {
     };
     mapRef.current.getSource("points")?.setData(fc);
   }, [mapReady, points]);
+
+  // ── 4b. Update cameras ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const fc = {
+      type: "FeatureCollection",
+      features: cameras.map((c) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [c.lng, c.lat] },
+        properties: { type: c.type, bearing: c.bearing },
+      })),
+    };
+    mapRef.current.getSource("cameras")?.setData(fc);
+  }, [mapReady, cameras]);
+
+  // ── 4c. Toggle camera visibility ────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    mapRef.current.setLayoutProperty("cameras-symbol", "visibility", showCameras ? "visible" : "none");
+  }, [mapReady, showCameras]);
 
   // ── 5. Update filter opacity ────────────────────────────────────────────────
   useEffect(() => {

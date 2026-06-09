@@ -1,6 +1,7 @@
 import { getBBox } from "../utils/geo.js";
 import { classifyTags } from "../algorithms/classifier.js";
 import { detectIntersections } from "../algorithms/intersection.js";
+import { planAllCameras } from "../algorithms/cameraPlacement.js";
 import { withinRadius, deduplicatePoints, scorePoints } from "../algorithms/spatialFilter.js";
 import { pointInPolygon, geometryBBox } from "../utils/pointInPolygon.js";
 
@@ -59,6 +60,8 @@ function buildOverpassQuery(bbox, categories, includeRoads) {
     // "out geom tags" returns full geometry (every node lat/lon) for each way
     // This is essential for intersection detection
     parts.push(`way["highway"~"${HIGHWAY_TYPES.join("|")}"](${bboxStr})->.roads;\n.roads out geom tags;`);
+    // Traffic signal nodes for camera placement
+    parts.push(`node["highway"="traffic_signals"](${bboxStr});\nout body;`);
   }
 
   return parts.join("\n");
@@ -85,9 +88,16 @@ async function fetchOverpass(query) {
 function normalizeElements(elements, categories) {
   const poiPoints = [];
   const ways = [];
+  const signalNodes = [];
 
   for (const el of elements) {
     const tags = el.tags || {};
+
+    // Traffic signal node
+    if (el.type === "node" && tags.highway === "traffic_signals") {
+      signalNodes.push({ lat: el.lat, lng: el.lon });
+      continue;
+    }
 
     // Road way: has highway tag + geometry (from "out geom tags")
     if (el.type === "way" && tags.highway) {
@@ -120,7 +130,7 @@ function normalizeElements(elements, categories) {
     });
   }
 
-  return { poiPoints, ways };
+  return { poiPoints, ways, signalNodes };
 }
 
 function calcDistance(p, center) {
@@ -151,7 +161,7 @@ export async function browserScan({ area, categories, boundary = null, options =
   const data = await fetchOverpass(query);
 
   onProgress?.("Xử lý dữ liệu OSM...");
-  const { poiPoints, ways } = normalizeElements(data.elements || [], categories);
+  const { poiPoints, ways, signalNodes } = normalizeElements(data.elements || [], categories);
 
   // Spatial filter
   let points;
@@ -166,23 +176,37 @@ export async function browserScan({ area, categories, boundary = null, options =
   points = deduplicatePoints(points);
 
   // Intersection detection (now works: ways have geometry from "out geom tags")
+  let detectedIntersections = [];
   if (categories.includes("intersection") && ways.length > 0) {
     onProgress?.(`Phát hiện giao lộ từ ${ways.length} đoạn đường...`);
     const allIntersections = detectIntersections(ways, center, useBoundary ? 999_999 : radiusM);
-    const filtered = useBoundary
+    detectedIntersections = useBoundary
       ? allIntersections.filter((p) => pointInPolygon([p.lng, p.lat], boundary.geometry))
       : allIntersections;
-    points = deduplicatePoints([...points, ...filtered]);
+    points = deduplicatePoints([...points, ...detectedIntersections]);
   }
 
   const allScoredPoints = scorePoints(points, center);
   const totalBeforeCap = allScoredPoints.length;
   points = allScoredPoints.slice(0, maxResults);
 
+  // Build roads GeoJSON-ready geometry
+  const rawRoads = ways.map((w) => ({
+    id: w.id,
+    geometry: w.geometry.map((n) => [n.lon, n.lat]),
+    highway: w.highway,
+  }));
+
+  // Camera placement (runs regardless of selected categories)
+  onProgress?.("Tính toán vị trí camera...");
+  const cameras = ways.length > 0
+    ? planAllCameras({ intersections: detectedIntersections, ways: rawRoads, signalNodes })
+    : [];
+
   const roads = includeRoads
-    ? ways.map((w) => ({
+    ? rawRoads.map((w) => ({
         id: `osm-way-${w.id}`,
-        geometry: w.geometry.map((n) => [n.lon, n.lat]),
+        geometry: w.geometry,
         highway: w.highway,
       }))
     : [];
@@ -199,8 +223,11 @@ export async function browserScan({ area, categories, boundary = null, options =
       totalFound: points.length,
       totalBeforeCap,
       byCategory,
+      signalCount: signalNodes.length,
+      cameraCount: cameras.length,
     },
     points,
     roads,
+    cameras,
   };
 }

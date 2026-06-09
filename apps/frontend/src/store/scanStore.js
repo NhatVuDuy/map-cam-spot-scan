@@ -15,6 +15,7 @@ const useScanStore = create((set, get) => ({
   // --- Results ---
   points: [],
   roads: [],
+  cameras: [],
   bbox: null,
   stats: {},
 
@@ -25,9 +26,11 @@ const useScanStore = create((set, get) => ({
   filter: null,
   hoveredPoint: null,
   selectedPoint: null,
+  showCameras: true,
 
   // --- Actions ---
   setSource: (source) => set({ source }),
+  setShowCameras: (showCameras) => set({ showCameras }),
   setArea: (area) => set({ area: { ...get().area, ...area } }),
   setCategories: (categories) => set({ categories }),
   setBoundary: (boundary) => set({ boundary }),
@@ -61,6 +64,7 @@ const useScanStore = create((set, get) => ({
       set({
         points: result.points || [],
         roads: result.roads || [],
+        cameras: result.cameras || [],
         bbox: result.meta?.bbox || null,
         stats: result.meta?.byCategory || {},
         loading: false,
@@ -80,7 +84,7 @@ const useScanStore = create((set, get) => ({
   },
 
   resetResults: () =>
-    set({ points: [], roads: [], bbox: null, stats: {}, error: null, progress: "", selectedPoint: null }),
+    set({ points: [], roads: [], cameras: [], bbox: null, stats: {}, error: null, progress: "", selectedPoint: null }),
 
   setFilter: (filter) => set({ filter }),
   setHoveredPoint: (hoveredPoint) => set({ hoveredPoint }),
