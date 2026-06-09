@@ -81,6 +81,11 @@ export function planCamerasForIntersections(intersections, signalNodes) {
 
     const effectiveArmCount = shape === "quad" ? 4 : shape === "tri" ? 3 : ix.armCount;
 
+    // For alley shape: place cams on the minor arm(s) — lowest class present.
+    // This handles both service/living_street (class 0) and residential/unclassified
+    // (class 1) alleys, and supports manual overrides where armClass may be any value.
+    const minArmClass = shape === "alley" ? Math.min(...armClasses) : null;
+
     for (let i = 0; i < ix.armBearings.length; i++) {
       const bearing  = ix.armBearings[i];
       const armClass = armClasses[i];
@@ -90,7 +95,8 @@ export function planCamerasForIntersections(intersections, signalNodes) {
         cams = hasSignal
           ? camsMajorWithSignal(ix.lat, ix.lng, bearing, effectiveArmCount)
           : camsMajorNoSignal(ix.lat, ix.lng, bearing, effectiveArmCount);
-      } else if (shape === "alley" && armClass === ALLEY_CLASS) {
+      } else if (shape === "alley" && armClass === minArmClass) {
+        // Place entrance cams on the minor-class arm(s) only
         cams = camsAlley(ix.lat, ix.lng, bearing);
       }
 

@@ -40,25 +40,22 @@ function clusterArms(rawArms, threshold = 35) {
 /**
  * Classify the intersection shape from its arm road-class distribution.
  *
- * Rules:
- *   "quad"  — 4+ distinct arms, ALL arms are major roads (class >= 2)
- *   "tri"   — exactly 3 arms, ALL arms are major roads
- *   "alley" — has at least one alley arm (class 0) AND at least one major arm (class >= 1)
- *   "minor" — everything else (residential-only crossings, driveways…)
- *
- * The KEY fix over the old approach: classification is driven by per-arm road class,
- * not just the max road class of the intersection node.  This means a major road
- * crossing an alley correctly becomes "alley", not "quad"/"tri".
+ *   "quad"  — 4+ arms, ALL arms major (class >= 2)
+ *   "tri"   — 3 arms, ALL arms major
+ *   "alley" — at least one major arm (class >= 2) + at least one minor arm (class <= 1)
+ *             This covers both service/living_street (class 0) AND residential/unclassified
+ *             (class 1) alleys, which is the common OSM tagging in Vietnam.
+ *   "minor" — everything else (no major road involved, or all-minor crossings)
  */
 function classifyShape(armRoadClasses, armCount) {
   const majorCount = armRoadClasses.filter(c => c >= MAJOR_CLASS).length;
-  const alleyCount = armRoadClasses.filter(c => c === ALLEY_CLASS).length;
+  const minorCount = armRoadClasses.filter(c => c < MAJOR_CLASS).length;  // class 0 or 1
   const allMajor   = majorCount === armCount;
 
   if (allMajor && armCount >= 4) return "quad";
   if (allMajor && armCount === 3) return "tri";
-  // Mixed: at least one alley arm touching a non-alley road
-  if (alleyCount > 0 && majorCount + (armRoadClasses.filter(c => c === 1).length) > 0) return "alley";
+  // Major road meeting a smaller road (any class < MAJOR_CLASS) → alley entrance
+  if (majorCount >= 1 && minorCount >= 1) return "alley";
   return "minor";
 }
 
