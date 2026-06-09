@@ -11,37 +11,37 @@ const ROAD_CLASS = {
 };
 
 /**
- * Group bearings into clusters of similar direction.
- * Returns array of mean bearing per cluster (= one per arm).
+ * Cluster {bearing, roadClass} pairs into distinct arm directions.
+ * Each cluster takes the max roadClass of its members.
+ * Returns [{bearing, roadClass}]
  */
-function clusterBearings(bearings, threshold = 30) {
-  const groups = []; // [{sum, count, mean}]
-  for (const b of bearings) {
+function clusterArms(rawArms, threshold = 30) {
+  const groups = [];
+  for (const { bearing, roadClass } of rawArms) {
     let merged = false;
     for (const g of groups) {
-      const diff = Math.abs(((b - g.mean + 540) % 360) - 180);
+      const diff = Math.abs(((bearing - g.sumB / g.n + 540) % 360) - 180);
       if (diff < threshold) {
-        g.sum += b;
-        g.count++;
-        g.mean = g.sum / g.count;
+        g.sumB += bearing;
+        g.n++;
+        g.roadClass = Math.max(g.roadClass, roadClass);
         merged = true;
         break;
       }
     }
-    if (!merged) groups.push({ sum: b, count: 1, mean: b });
+    if (!merged) groups.push({ sumB: bearing, n: 1, roadClass });
   }
-  return groups.map(g => g.mean);
+  return groups.map(g => ({ bearing: g.sumB / g.n, roadClass: g.roadClass }));
 }
 
 /**
  * Detect road intersections using node-sharing algorithm.
- * Returns intersections sorted by road class desc, then arm count desc.
- * Each intersection has: armCount, armBearings[], roadClass.
+ * Each intersection includes armBearings[] and armRoadClasses[] (parallel arrays).
+ * Sorted by road class desc, arm count desc.
  */
 export function detectIntersections(ways, center, radiusM) {
-  // key → { lat, lng, wayIds, neighborsByWay: Map<wayId, {lat,lng}[]> }
   const nodeMap = new Map();
-  const wayClass = new Map(); // wayId → road class number
+  const wayClass = new Map();
 
   for (const way of ways) {
     const geom = way.geometry || [];
@@ -56,7 +56,6 @@ export function detectIntersections(ways, center, radiusM) {
       const entry = nodeMap.get(key);
       entry.wayIds.add(way.id);
 
-      // Record adjacent nodes in this way (these define the arm directions)
       if (!entry.neighborsByWay.has(way.id)) entry.neighborsByWay.set(way.id, []);
       const neighbors = entry.neighborsByWay.get(way.id);
       if (i > 0) neighbors.push({ lat: geom[i - 1].lat, lng: geom[i - 1].lon });
@@ -72,18 +71,21 @@ export function detectIntersections(ways, center, radiusM) {
     const dist = haversine(center.lat, center.lng, node.lat, node.lng);
     if (dist > radiusM) continue;
 
-    // Compute arm bearings from all adjacent neighbor positions
-    const rawBearings = [];
-    for (const neighbors of node.neighborsByWay.values()) {
+    // Build raw arms with per-way road class
+    const rawArms = [];
+    for (const [wayId, neighbors] of node.neighborsByWay) {
+      const cls = wayClass.get(wayId) ?? 0;
       for (const nb of neighbors) {
-        rawBearings.push(bearingBetween(node.lat, node.lng, nb.lat, nb.lng));
+        rawArms.push({ bearing: bearingBetween(node.lat, node.lng, nb.lat, nb.lng), roadClass: cls });
       }
     }
 
-    const armBearings = clusterBearings(rawBearings);
-    const armCount = armBearings.length;
+    const arms = clusterArms(rawArms);
+    const armCount = arms.length;
+    const armBearings = arms.map(a => a.bearing);
+    const armRoadClasses = arms.map(a => a.roadClass);
 
-    // Road class: max among connected ways
+    // Overall road class = max among connected ways
     let roadClass = 0;
     for (const wid of node.wayIds) {
       const cls = wayClass.get(wid) ?? 0;
@@ -100,6 +102,7 @@ export function detectIntersections(ways, center, radiusM) {
       wayCount: node.wayIds.size,
       armCount,
       armBearings,
+      armRoadClasses,
       roadClass,
       name,
       distanceM: Math.round(dist),
