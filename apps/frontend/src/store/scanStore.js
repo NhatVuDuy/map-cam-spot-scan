@@ -2,7 +2,11 @@ import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
 import { planAllCameras } from "../algorithms/cameraPlacement.js";
 import { CATEGORIES } from "../utils/categories.js";
-import { saveToHandle, saveAsNew, importSession } from "../utils/sessionFile.js";
+import { importSession } from "../utils/sessionFile.js";
+import {
+  listSessions, readSession, writeSession,
+  deleteSession, renameSession, downloadSession,
+} from "../utils/opfs.js";
 
 const DEFAULT_CATEGORIES = Object.keys(CATEGORIES);
 
@@ -36,9 +40,11 @@ const useScanStore = create((set, get) => ({
   // --- Per-intersection user overrides: id → { intersectionShape?, hasSignal? } ---
   intersectionOverrides: {},
 
-  // --- Session file tracking ---
-  sessionFileHandle: null,   // FileSystemFileHandle | null
-  sessionFileName:   null,   // string | null  (e.g. "cam-scan-2025-06-09.json")
+  // --- Session (OPFS project folder) ---
+  sessionFilename: null,   // current session filename in OPFS
+  sessionDisplayName: null,
+  sessions: [],            // list cache [{filename, displayName, savedAt, ...}]
+  sessionsLoading: false,
 
   // --- UI ---
   loading: false,
@@ -72,16 +78,11 @@ const useScanStore = create((set, get) => ({
     set({ points, stats, selectedPoint: sel?.id === id ? null : sel });
   },
 
-  /**
-   * Override intersection shape and/or signal, then recompute cameras.
-   * `override` can contain: { intersectionShape?, hasSignal? }
-   */
   setIntersectionOverride: (id, override) => {
     const prevOverrides = get().intersectionOverrides;
     const newEntry = { ...(prevOverrides[id] || {}), ...override };
     const newOverrides = { ...prevOverrides, [id]: newEntry };
 
-    // Patch points[] so the map layer and popup reflect the change immediately
     const points = get().points.map(p => {
       if (p.id !== id || p.category !== "intersection") return p;
       const patched = { ...p, ...newEntry };
@@ -93,7 +94,6 @@ const useScanStore = create((set, get) => ({
 
     set({ intersectionOverrides: newOverrides, points });
 
-    // Recompute cameras using overridden intersection data
     const { rawIntersections, rawWays, rawSignalNodes } = get();
     if (rawIntersections.length > 0) {
       const enriched = rawIntersections.map(ix =>
@@ -104,6 +104,7 @@ const useScanStore = create((set, get) => ({
     }
   },
 
+  // ─── Scan ────────────────────────────────────────────────────────────────
   runScan: async () => {
     const { area, categories, boundary, maxResults } = get();
     set({
@@ -111,7 +112,7 @@ const useScanStore = create((set, get) => ({
       points: [], roads: [], cameras: [],
       rawIntersections: [], rawWays: [], rawSignalNodes: [],
       intersectionOverrides: {},
-      sessionFileHandle: null, sessionFileName: null,
+      sessionFilename: null, sessionDisplayName: null,
       selectedPoint: null,
     });
 
@@ -146,43 +147,117 @@ const useScanStore = create((set, get) => ({
     }
   },
 
+  // ─── OPFS session management ──────────────────────────────────────────────
+
+  /** Refresh the in-memory sessions list from OPFS. */
+  refreshSessions: async () => {
+    set({ sessionsLoading: true });
+    const sessions = await listSessions();
+    set({ sessions, sessionsLoading: false });
+  },
+
   /**
-   * Save to the currently open file (if any), otherwise open Save As dialog / download.
+   * Save current state to OPFS.
+   * If sessionFilename exists → overwrite. Otherwise prompt for a name
+   * (or auto-generate one) and create a new session.
    */
-  saveSession: async () => {
+  saveToSystem: async (displayName) => {
     const state = get();
-    const { sessionFileHandle, sessionFileName } = state;
-    if (sessionFileHandle) {
-      const ok = await saveToHandle(sessionFileHandle, state);
-      if (ok) return; // wrote in-place — done
+    const name = displayName
+      || state.sessionDisplayName
+      || `Phiên ${new Date().toLocaleString("vi-VN")}`;
+    const filename = state.sessionFilename || null;
+
+    try {
+      const saved = await writeSession(filename || name, state, name);
+      set({ sessionFilename: saved, sessionDisplayName: name });
+      await get().refreshSessions();
+      set({ progress: `Đã lưu "${name}"` });
+    } catch (e) {
+      set({ error: `Lưu thất bại: ${e.message}` });
     }
-    // No handle or write failed → fall back to Save As / download
-    const handle = await saveAsNew(state, sessionFileName ?? undefined);
-    if (handle) set({ sessionFileHandle: handle, sessionFileName: handle.name });
+  },
+
+  /** Open a session from OPFS and restore state. */
+  loadFromSystem: async (filename) => {
+    set({ loading: true, error: null, progress: "Đang mở phiên..." });
+    try {
+      const data = await readSession(filename);
+      set({
+        area:      data.area   ?? get().area,
+        boundary:  data.boundary ?? null,
+        points:    data.points  || [],
+        roads:     data.roads   || [],
+        cameras:   data.cameras || [],
+        bbox:      data.bbox    || null,
+        stats:     data.stats   || {},
+        rawIntersections:      data.rawIntersections   || [],
+        rawWays:               data.rawWays            || [],
+        rawSignalNodes:        data.rawSignalNodes      || [],
+        intersectionOverrides: data.intersectionOverrides || {},
+        sessionFilename:    filename,
+        sessionDisplayName: data._name || filename.replace(/\.json$/, ""),
+        loading: false, error: null,
+        progress: `Đã mở "${data._name || filename}"`,
+        selectedPoint: null, filter: null,
+      });
+    } catch (e) {
+      set({ loading: false, error: `Mở thất bại: ${e.message}` });
+    }
+  },
+
+  /** Delete a session from OPFS. */
+  deleteFromSystem: async (filename) => {
+    try {
+      await deleteSession(filename);
+      const { sessionFilename } = get();
+      if (sessionFilename === filename) {
+        set({ sessionFilename: null, sessionDisplayName: null });
+      }
+      await get().refreshSessions();
+    } catch (e) {
+      set({ error: `Xoá thất bại: ${e.message}` });
+    }
+  },
+
+  /** Rename a session in OPFS. */
+  renameInSystem: async (filename, newName) => {
+    try {
+      const newFilename = await renameSession(filename, newName);
+      const { sessionFilename } = get();
+      if (sessionFilename === filename) {
+        set({ sessionFilename: newFilename, sessionDisplayName: newName });
+      }
+      await get().refreshSessions();
+    } catch (e) {
+      set({ error: `Đổi tên thất bại: ${e.message}` });
+    }
+  },
+
+  /** Download (export) a session from OPFS to the user's filesystem. */
+  exportFromSystem: async (filename) => {
+    try {
+      await downloadSession(filename);
+    } catch (e) {
+      set({ error: `Xuất thất bại: ${e.message}` });
+    }
   },
 
   /**
-   * Always open a new Save As dialog / download (ignores current handle).
+   * Load an external file (from outside OPFS).
+   * Does NOT auto-add to OPFS — user can click "Lưu" afterward to add it.
    */
-  saveSessionAs: async () => {
-    const state = get();
-    const handle = await saveAsNew(state);
-    if (handle) set({ sessionFileHandle: handle, sessionFileName: handle.name });
-  },
-
-  loadSession: async (file) => {
+  loadExternalFile: async (file) => {
     set({ loading: true, error: null, progress: "Đang đọc file..." });
     try {
       const state = await importSession(file);
       const count = state.points.length;
       set({
         ...state,
-        // Browsers give a File object from <input> — no FileSystemFileHandle.
-        // showOpenFilePicker() would give one, but <input> is simpler for now.
-        sessionFileHandle: null,
-        sessionFileName:   state._filename ?? file.name ?? null,
+        sessionFilename: null,      // not in OPFS yet
+        sessionDisplayName: state._filename ?? file.name ?? null,
         loading: false, error: null,
-        progress: `Đã tải ${count} địa điểm từ "${state._filename ?? file.name}"`,
+        progress: `Đã tải "${state._filename ?? file.name}" (${count} địa điểm)`,
         selectedPoint: null, filter: null,
       });
     } catch (e) {
@@ -195,7 +270,7 @@ const useScanStore = create((set, get) => ({
       points: [], roads: [], cameras: [], bbox: null, stats: {},
       rawIntersections: [], rawWays: [], rawSignalNodes: [],
       intersectionOverrides: {},
-      sessionFileHandle: null, sessionFileName: null,
+      sessionFilename: null, sessionDisplayName: null,
       error: null, progress: "", selectedPoint: null,
     }),
 

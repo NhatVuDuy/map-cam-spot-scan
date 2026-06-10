@@ -1,8 +1,5 @@
 import useScanStore from "../store/scanStore.js";
 
-/**
- * useScanner — convenience hook exposing scan state and actions.
- */
 export function useScanner() {
   const store = useScanStore();
   return {
@@ -22,9 +19,13 @@ export function useScanner() {
     hoveredPoint: store.hoveredPoint,
     selectedPoint: store.selectedPoint,
     showCameras: store.showCameras,
+    maxResults: store.maxResults,
+    sessionFilename: store.sessionFilename,
+    sessionDisplayName: store.sessionDisplayName,
+
+    // Actions
     setSource: store.setSource,
     setShowCameras: store.setShowCameras,
-    maxResults: store.maxResults,
     setArea: store.setArea,
     setCategories: store.setCategories,
     setMaxResults: store.setMaxResults,
@@ -37,9 +38,16 @@ export function useScanner() {
     setSelectedPoint: store.setSelectedPoint,
     intersectionOverrides: store.intersectionOverrides,
     setIntersectionOverride: store.setIntersectionOverride,
-    sessionFileName: store.sessionFileName,
-    saveSession: store.saveSession,
-    saveSessionAs: store.saveSessionAs,
-    loadSession: store.loadSession,
+
+    // Session management
+    sessions: store.sessions,
+    sessionsLoading: store.sessionsLoading,
+    refreshSessions: store.refreshSessions,
+    saveToSystem: store.saveToSystem,
+    loadFromSystem: store.loadFromSystem,
+    deleteFromSystem: store.deleteFromSystem,
+    renameInSystem: store.renameInSystem,
+    exportFromSystem: store.exportFromSystem,
+    loadExternalFile: store.loadExternalFile,
   };
 }
