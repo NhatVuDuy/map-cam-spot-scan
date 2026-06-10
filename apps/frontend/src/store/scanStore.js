@@ -132,7 +132,8 @@ const useScanStore = create((set, get) => ({
       points: [], roads: [], cameras: [],
       rawIntersections: [], rawWays: [], rawSignalNodes: [],
       intersectionOverrides: {},
-      sessionFilename: null, sessionDisplayName: null,
+      // Keep sessionFilename/sessionDisplayName so user can still save over the
+      // same project after the scan. The ScanButton warns them first.
       selectedPoint: null,
     });
 
@@ -181,6 +182,22 @@ const useScanStore = create((set, get) => ({
    * If sessionFilename exists → overwrite. Otherwise prompt for a name
    * (or auto-generate one) and create a new session.
    */
+  /** Always save as a brand-new project (ignores current sessionFilename). */
+  saveSessionAs: async (displayName) => {
+    const state = get();
+    const name = (displayName
+      || `Dự án ${new Date().toLocaleString("vi-VN")}`).replace(/\.json$/i, "");
+    set({ progress: `Đang lưu "${name}"...`, error: null });
+    try {
+      const saved = await writeSession(name, state, name);
+      set({ sessionFilename: saved, sessionDisplayName: name, progress: `Đã lưu "${name}"`, error: null });
+      await get().refreshSessions();
+    } catch (e) {
+      console.error("[saveSessionAs] failed:", e);
+      set({ error: `Lưu thất bại: ${e.message || e}`, progress: "" });
+    }
+  },
+
   saveToSystem: async (displayName) => {
     const state = get();
     const name = (displayName

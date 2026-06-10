@@ -541,17 +541,21 @@ function MapViewInner() {
         filter: ixShapeFilter,
         layout: {
           "icon-image": ["concat", "ix-", ["coalesce", ["get", "intersectionShape"], "minor"]],
-          // Size by road class — alley rectangle is drawn in the top half only,
-          // so we apply an extra ×1.5 multiplier for that shape.
+          // Size by road class. Alley rect only occupies the top half of its canvas
+          // so its raw icon-size needs to be larger to appear visually similar to
+          // quad/tri icons. Use separate step values per shape via a case expression.
           "icon-size": [
-            "*",
-            ["case", ["==", ["coalesce", ["get", "intersectionShape"], ""], "alley"], 1.5, 1],
+            "case",
+            ["==", ["coalesce", ["get", "intersectionShape"], ""], "alley"],
             [
               "interpolate", ["linear"], ["zoom"],
-              10,
-              ["step", ["coalesce", ["get", "roadClass"], 0], 0.35, 1, 0.45, 2, 0.55, 3, 0.65, 4, 0.75, 5, 0.85],
-              16,
-              ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
+              10, ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
+              16, ["step", ["coalesce", ["get", "roadClass"], 0], 0.90, 1, 1.10, 2, 1.30, 3, 1.55, 4, 1.75, 5, 2.00],
+            ],
+            [
+              "interpolate", ["linear"], ["zoom"],
+              10, ["step", ["coalesce", ["get", "roadClass"], 0], 0.35, 1, 0.45, 2, 0.55, 3, 0.65, 4, 0.75, 5, 0.85],
+              16, ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
             ]
           ],
           // Rotate alley rectangle toward the alley arm
