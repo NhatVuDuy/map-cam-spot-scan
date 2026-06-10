@@ -231,9 +231,13 @@ function loadCamIcons(map) {
   for (const [type, { color }] of Object.entries(CAM_ICONS)) {
     try {
       const img = makeCamImageData(color);
-      map.addImage(`cam-icon-${type}`, { width: img.width, height: img.height, data: img.data });
-    } catch {
-      // icon won't show but map still works
+      map.addImage(`cam-icon-${type}`, {
+        width:  img.width,
+        height: img.height,
+        data:   new Uint8Array(img.data.buffer),
+      });
+    } catch (e) {
+      console.error(`[loadCamIcons] failed for type "${type}":`, e);
     }
   }
 }
@@ -311,9 +315,14 @@ function loadIxIcons(map) {
   for (const shape of ["quad", "tri", "alley", "minor"]) {
     try {
       const img = makeIxImageData(shape);
-      map.addImage(`ix-${shape}`, { width: img.width, height: img.height, data: img.data });
-    } catch {
-      // non-fatal
+      // MapLibre expects Uint8Array; getImageData returns Uint8ClampedArray — convert.
+      map.addImage(`ix-${shape}`, {
+        width:  img.width,
+        height: img.height,
+        data:   new Uint8Array(img.data.buffer),
+      });
+    } catch (e) {
+      console.error(`[loadIxIcons] failed for shape "${shape}":`, e);
     }
   }
 }
@@ -541,22 +550,15 @@ function MapViewInner() {
         filter: ixShapeFilter,
         layout: {
           "icon-image": ["concat", "ix-", ["coalesce", ["get", "intersectionShape"], "minor"]],
-          // Size by road class. Alley rect only occupies the top half of its canvas
-          // so its raw icon-size needs to be larger to appear visually similar to
-          // quad/tri icons. Use separate step values per shape via a case expression.
+          // icon-size: MapLibre requires literal numbers as interpolate stop outputs.
+          // We differentiate alley (needs ~1.5× to compensate for top-half canvas)
+          // from quad/tri using a case at the top level, each branch a plain
+          // interpolate with zoom and literal stop values.
           "icon-size": [
             "case",
             ["==", ["coalesce", ["get", "intersectionShape"], ""], "alley"],
-            [
-              "interpolate", ["linear"], ["zoom"],
-              10, ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
-              16, ["step", ["coalesce", ["get", "roadClass"], 0], 0.90, 1, 1.10, 2, 1.30, 3, 1.55, 4, 1.75, 5, 2.00],
-            ],
-            [
-              "interpolate", ["linear"], ["zoom"],
-              10, ["step", ["coalesce", ["get", "roadClass"], 0], 0.35, 1, 0.45, 2, 0.55, 3, 0.65, 4, 0.75, 5, 0.85],
-              16, ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
-            ]
+            ["interpolate", ["linear"], ["zoom"], 10, 0.75, 13, 1.10, 16, 1.55],
+            ["interpolate", ["linear"], ["zoom"], 10, 0.50, 13, 0.75, 16, 1.05]
           ],
           // Rotate alley rectangle toward the alley arm
           "icon-rotate": [
