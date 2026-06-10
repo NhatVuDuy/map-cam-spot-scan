@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
-import { planAllCameras } from "../algorithms/cameraPlacement.js";
+import { planAllCameras, pickAlleyArmBearing } from "../algorithms/cameraPlacement.js";
 import { CATEGORIES } from "../utils/categories.js";
 import { importSession } from "../utils/sessionFile.js";
 import {
@@ -83,23 +83,43 @@ const useScanStore = create((set, get) => ({
     const newEntry = { ...(prevOverrides[id] || {}), ...override };
     const newOverrides = { ...prevOverrides, [id]: newEntry };
 
+    // Recompute effective alley bearing so the alley icon rotates correctly
+    // after a shape change or a manual direction override.
+    const { rawIntersections, rawWays, rawSignalNodes, area } = get();
+    const rawIx = rawIntersections.find(x => x.id === id);
+    let effectiveAlleyBearing = null;
+    if (rawIx) {
+      const merged = { ...rawIx, ...newEntry };
+      if ((merged.intersectionShape || rawIx.intersectionShape) === "alley") {
+        effectiveAlleyBearing = pickAlleyArmBearing(merged);
+      }
+    }
+
     const points = get().points.map(p => {
       if (p.id !== id || p.category !== "intersection") return p;
       const patched = { ...p, ...newEntry };
       if (newEntry.intersectionShape) {
         patched.name = SHAPE_LABEL[newEntry.intersectionShape] || p.name;
       }
+      if (effectiveAlleyBearing != null) {
+        patched.alleyBearing = effectiveAlleyBearing;
+      }
       return patched;
     });
 
     set({ intersectionOverrides: newOverrides, points });
 
-    const { rawIntersections, rawWays, rawSignalNodes } = get();
     if (rawIntersections.length > 0) {
       const enriched = rawIntersections.map(ix =>
         newOverrides[ix.id] ? { ...ix, ...newOverrides[ix.id] } : ix
       );
-      const cameras = planAllCameras({ intersections: enriched, ways: rawWays, signalNodes: rawSignalNodes });
+      const cameras = planAllCameras({
+        intersections: enriched,
+        ways: rawWays,
+        signalNodes: rawSignalNodes,
+        center: { lat: area.lat, lng: area.lng },
+        radiusM: area.radiusM,
+      });
       set({ cameras });
     }
   },

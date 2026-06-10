@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import useScanStore from "../../store/scanStore.js";
 import { CATEGORIES } from "../../utils/categories.js";
 import { circleGeoJSON } from "../../utils/geo.js";
+import { bearingBetween } from "../../utils/bearing.js";
 import MapContextMenu from "./MapContextMenu.jsx";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
@@ -122,6 +123,11 @@ function buildIntersectionPopupHTML({ props, distFmt }) {
         <button data-ix-signal="${props.id}" data-ix-signal-cur="${hasSignal}"
           style="width:100%;padding:5px 0;margin-top:2px;background:${hasSignal ? "#FBBF2418" : "#1e3354"};border:1px solid ${hasSignal ? "#FBBF2444" : "#334155"};border-radius:6px;color:${hasSignal ? "#FBBF24" : "#94a3b8"};font-size:0.75rem;font-weight:600;cursor:pointer">
           ${hasSignal ? "🚦 Có đèn — Bấm để tắt" : "⭕ Không đèn — Bấm để bật"}
+        </button>` : ""}
+        ${shape === "alley" ? `
+        <button data-ix-aim="${props.id}"
+          style="width:100%;padding:5px 0;margin-top:2px;background:#34D39918;border:1px solid #34D39944;border-radius:6px;color:#34D399;font-size:0.75rem;font-weight:600;cursor:pointer">
+          🎯 Đặt hướng cam — Bấm rồi click vào hẻm trên bản đồ
         </button>` : ""}
       </div>
       <div style="padding:0.4rem 0.85rem 0.65rem">
@@ -273,8 +279,8 @@ function makeIxImageData(shape, size = 40) {
     // After icon-rotate(alleyBearing), the top of the canvas points into the alley,
     // so one edge of the rectangle sits exactly at the intersection and the other
     // extends into the alley.
-    const w = s * 0.32;
-    const h = s * 0.46;          // fills top half with a small gap
+    const w = s * 0.46;          // wider than before so the icon reads at a glance
+    const h = s * 0.48;          // fills top half with a small gap
     const x = (s - w) / 2;
     const y = s * 0.02;          // top edge near top of canvas
     ctx.fillStyle = `${IX_COLOR}cc`;
@@ -283,9 +289,9 @@ function makeIxImageData(shape, size = 40) {
     // Arrowhead at top (into alley)
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.moveTo(s * 0.50, y);
-    ctx.lineTo(s * 0.50 - 5, y + 9);
-    ctx.lineTo(s * 0.50 + 5, y + 9);
+    ctx.moveTo(s * 0.50, y + 2);
+    ctx.lineTo(s * 0.50 - 7, y + 12);
+    ctx.lineTo(s * 0.50 + 7, y + 12);
     ctx.closePath();
     ctx.fill();
 
@@ -337,6 +343,7 @@ function MapViewInner() {
 
   const [ctxMenu, setCtxMenu]         = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const aimingRef = useRef(null);     // { ixId, lat, lng } while user is picking a direction
 
   // ── Document event delegation (delete / intersection controls) ───────────────
   useEffect(() => {
@@ -356,7 +363,23 @@ function MapViewInner() {
         const id  = sigBtn.getAttribute("data-ix-signal");
         const cur = sigBtn.getAttribute("data-ix-signal-cur") === "true";
         useScanStore.getState().setIntersectionOverride(id, { hasSignal: !cur });
-        // Popup will refresh via the points useEffect below
+        return;
+      }
+
+      // Aim button (alley) — enter aiming mode
+      const aimBtn = e.target.closest("[data-ix-aim]");
+      if (aimBtn) {
+        const id = aimBtn.getAttribute("data-ix-aim");
+        const ix = useScanStore.getState().points.find(p => p.id === id);
+        if (!ix) return;
+        aimingRef.current = { ixId: id, lat: ix.lat, lng: ix.lng };
+        // Visual feedback: change cursor + show banner
+        if (mapRef.current) mapRef.current.getCanvas().style.cursor = "crosshair";
+        aimBtn.textContent = "✓ Đang đợi… click vào hẻm";
+        aimBtn.style.background = "#34D39933";
+        // Close popup so it doesn't block the click
+        popupRef.current?.remove();
+        popupRef.current = null;
       }
     };
 
@@ -518,13 +541,18 @@ function MapViewInner() {
         filter: ixShapeFilter,
         layout: {
           "icon-image": ["concat", "ix-", ["coalesce", ["get", "intersectionShape"], "minor"]],
-          // Size by road class
+          // Size by road class — alley rectangle is drawn in the top half only,
+          // so we apply an extra ×1.5 multiplier for that shape.
           "icon-size": [
-            "interpolate", ["linear"], ["zoom"],
-            10,
-            ["step", ["coalesce", ["get", "roadClass"], 0], 0.35, 1, 0.45, 2, 0.55, 3, 0.65, 4, 0.75, 5, 0.85],
-            16,
-            ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
+            "*",
+            ["case", ["==", ["coalesce", ["get", "intersectionShape"], ""], "alley"], 1.5, 1],
+            [
+              "interpolate", ["linear"], ["zoom"],
+              10,
+              ["step", ["coalesce", ["get", "roadClass"], 0], 0.35, 1, 0.45, 2, 0.55, 3, 0.65, 4, 0.75, 5, 0.85],
+              16,
+              ["step", ["coalesce", ["get", "roadClass"], 0], 0.55, 1, 0.70, 2, 0.85, 3, 1.00, 4, 1.15, 5, 1.30],
+            ]
           ],
           // Rotate alley rectangle toward the alley arm
           "icon-rotate": [
@@ -606,14 +634,33 @@ function MapViewInner() {
         popupRef.current.on("close", () => { popupRef.current = null; activeIxRef.current = null; });
       };
 
+      // Aim-mode interceptor: if user clicked "Đặt hướng" on an alley popup,
+      // the next map click sets the alley arm direction.
+      map.on("click", (e) => {
+        const aim = aimingRef.current;
+        if (!aim) return;
+        e.preventDefault?.();
+        const bearing = bearingBetween(aim.lat, aim.lng, e.lngLat.lat, e.lngLat.lng);
+        useScanStore.getState().setIntersectionOverride(aim.ixId, { alleyArmBearing: bearing });
+        aimingRef.current = null;
+        map.getCanvas().style.cursor = "";
+      });
+
       // Reuse same handler for both symbol and circle layers
-      map.on("click", "intersections-symbol", (e) => openIxPopup(e.features[0].properties, e.lngLat));
-      map.on("click", "intersections-minor",  (e) => openIxPopup(e.features[0].properties, e.lngLat));
+      map.on("click", "intersections-symbol", (e) => {
+        if (aimingRef.current) return; // aim-mode in progress, skip popup
+        openIxPopup(e.features[0].properties, e.lngLat);
+      });
+      map.on("click", "intersections-minor",  (e) => {
+        if (aimingRef.current) return;
+        openIxPopup(e.features[0].properties, e.lngLat);
+      });
       map.on("mouseenter", "intersections-minor",  () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "intersections-minor",  () => { map.getCanvas().style.cursor = ""; });
 
       // ── Click: POI circle ──────────────────────────────────────────────────
       map.on("click", "points-circle", (e) => {
+        if (aimingRef.current) return;
         const props   = e.features[0].properties;
         const cat     = CATEGORIES[props.category];
         const distFmt = props.distanceM >= 1000

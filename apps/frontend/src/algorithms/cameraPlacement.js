@@ -10,6 +10,60 @@ const ALLEY_CLASS    = 0;
 let _id = 0;
 function nextId(type) { return `cam-${type}-${++_id}`; }
 
+function closestArmIdx(bearings, target) {
+  let bestIdx = 0, bestDiff = Infinity;
+  bearings.forEach((b, i) => {
+    const diff = Math.abs(((b - target + 540) % 360) - 180);
+    if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+  });
+  return bestIdx;
+}
+
+/**
+ * Decide which arm(s) of an intersection are alley arms (entrance to a hẻm).
+ * Returns a Set of indices into ix.armBearings.
+ */
+export function pickAlleyArmIndices(ix) {
+  const armBearings    = ix.armBearings || [];
+  const armClasses     = ix.armRoadClasses ?? armBearings.map(() => ix.roadClass);
+  if (armBearings.length < 2) return new Set();
+
+  const indices = new Set();
+  const minClass = Math.min(...armClasses);
+  const maxClass = Math.max(...armClasses);
+
+  if (ix.alleyArmBearing != null) {
+    indices.add(closestArmIdx(armBearings, ix.alleyArmBearing));
+  } else if (minClass < maxClass) {
+    armClasses.forEach((c, i) => { if (c === minClass) indices.add(i); });
+  } else if (armBearings.length === 3) {
+    // Ngã 3 đồng cấp: nhánh không có đối tác gần 180° = nhánh rẽ = hẻm
+    let bestIdx = 0, bestMinOpp = -Infinity;
+    armBearings.forEach((b, i) => {
+      let closestOpp = Infinity;
+      armBearings.forEach((b2, j) => {
+        if (i === j) return;
+        const angleDiff = Math.abs(((b2 - b + 540) % 360) - 180);
+        if (angleDiff < closestOpp) closestOpp = angleDiff;
+      });
+      if (closestOpp > bestMinOpp) { bestMinOpp = closestOpp; bestIdx = i; }
+    });
+    indices.add(bestIdx);
+  } else {
+    const ab = ix.alleyBearing ?? armBearings[0];
+    indices.add(closestArmIdx(armBearings, ab));
+  }
+  return indices;
+}
+
+/** Returns the bearing of the (first) alley arm — useful for orienting the icon. */
+export function pickAlleyArmBearing(ix) {
+  const indices = pickAlleyArmIndices(ix);
+  if (indices.size === 0) return ix.alleyBearing ?? 0;
+  const first = indices.values().next().value;
+  return ix.armBearings[first];
+}
+
 // ─── CAM2 / CAM2.2: major arm WITH traffic signal ──────────────────────────
 // Right lane: 2 cams at the same point (tips touch) — outbound + inbound.
 // Left lane:  1 cam facing outbound.
@@ -81,26 +135,7 @@ export function planCamerasForIntersections(intersections, signalNodes) {
 
     const effectiveArmCount = shape === "quad" ? 4 : shape === "tri" ? 3 : ix.armCount;
 
-    // Pre-compute which arm indices are "alley arms" for shape === "alley".
-    // If arms have mixed classes: pick only the lowest-class arms.
-    // If all arms share the same class (manual override edge case): pick only the
-    // single arm whose bearing is closest to ix.alleyBearing to avoid cameras on all arms.
-    let alleyArmIndices = new Set();
-    if (shape === "alley") {
-      const minClass = Math.min(...armClasses);
-      const maxClass = Math.max(...armClasses);
-      if (minClass < maxClass) {
-        armClasses.forEach((c, i) => { if (c === minClass) alleyArmIndices.add(i); });
-      } else {
-        const ab = ix.alleyBearing ?? ix.armBearings[0];
-        let bestIdx = 0, bestDiff = Infinity;
-        ix.armBearings.forEach((b, j) => {
-          const diff = Math.abs(((b - ab + 540) % 360) - 180);
-          if (diff < bestDiff) { bestDiff = diff; bestIdx = j; }
-        });
-        alleyArmIndices.add(bestIdx);
-      }
-    }
+    const alleyArmIndices = shape === "alley" ? pickAlleyArmIndices(ix) : new Set();
 
     for (let i = 0; i < ix.armBearings.length; i++) {
       const bearing  = ix.armBearings[i];
