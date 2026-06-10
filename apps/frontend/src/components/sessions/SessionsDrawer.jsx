@@ -179,7 +179,7 @@ function btnStyle(color, filled) {
 export default function SessionsDrawer({ open, onClose }) {
   const {
     sessions, sessionsLoading, sessionFilename, sessionDisplayName,
-    points, loading,
+    points, loading, progress, error,
     refreshSessions, saveToSystem, loadFromSystem,
     deleteFromSystem, renameInSystem, exportFromSystem,
     loadExternalFile,
@@ -286,6 +286,23 @@ export default function SessionsDrawer({ open, onClose }) {
             style={{ display: "none" }}
             onChange={handleLoadExternal}
           />
+
+          {/* Status messages */}
+          {error && (
+            <div style={{
+              marginTop: "0.5rem", padding: "5px 9px",
+              background: `${C.red}12`, border: `1px solid ${C.red}40`,
+              borderRadius: "4px", fontSize: "0.7rem", color: C.red,
+              lineHeight: 1.4,
+            }}>⚠ {error}</div>
+          )}
+          {!error && progress && (
+            <div style={{
+              marginTop: "0.5rem", padding: "5px 9px",
+              background: `${C.cyan}10`, border: `1px solid ${C.cyan}30`,
+              borderRadius: "4px", fontSize: "0.7rem", color: C.cyan,
+            }}>{progress}</div>
+          )}
 
           {/* Current session label */}
           {sessionDisplayName && (

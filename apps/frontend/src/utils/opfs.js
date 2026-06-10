@@ -27,24 +27,43 @@ export async function listSessions() {
   try {
     const dir = await getDir();
     const out = [];
-    for await (const [filename, handle] of dir.entries()) {
-      if (handle.kind !== "file" || !filename.endsWith(".json")) continue;
-      try {
-        const file = await handle.getFile();
-        const data = JSON.parse(await file.text());
-        out.push({
-          filename,
-          displayName:  data._name      || filename.replace(/\.json$/, ""),
-          savedAt:      data.savedAt    || new Date(file.lastModified).toISOString(),
-          pointCount:   data.points?.length   || 0,
-          cameraCount:  data.cameras?.length  || 0,
-          areaLabel:    data._areaLabel || "",
-        });
-      } catch { /* skip corrupt files */ }
+    // Support older Chrome where .entries() is missing — fall back to .values()
+    const iter = typeof dir.entries === "function" ? dir.entries() : null;
+    if (iter) {
+      for await (const [filename, handle] of iter) {
+        if (handle.kind !== "file" || !filename.endsWith(".json")) continue;
+        const meta = await readMeta(handle, filename);
+        if (meta) out.push(meta);
+      }
+    } else {
+      for await (const handle of dir.values()) {
+        if (handle.kind !== "file" || !handle.name.endsWith(".json")) continue;
+        const meta = await readMeta(handle, handle.name);
+        if (meta) out.push(meta);
+      }
     }
     return out.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
-  } catch {
+  } catch (e) {
+    console.error("[opfs] listSessions failed:", e);
     return [];
+  }
+}
+
+async function readMeta(handle, filename) {
+  try {
+    const file = await handle.getFile();
+    const data = JSON.parse(await file.text());
+    return {
+      filename,
+      displayName:  data._name      || filename.replace(/\.json$/, ""),
+      savedAt:      data.savedAt    || new Date(file.lastModified).toISOString(),
+      pointCount:   data.points?.length   || 0,
+      cameraCount:  data.cameras?.length  || 0,
+      areaLabel:    data._areaLabel || "",
+    };
+  } catch (e) {
+    console.warn("[opfs] skipping corrupt file:", filename, e);
+    return null;
   }
 }
 
@@ -58,10 +77,11 @@ export async function readSession(filename) {
 
 /** Write state to OPFS under the given filename. */
 export async function writeSession(filename, state, displayName) {
+  if (!navigator.storage?.getDirectory) {
+    throw new Error("Trình duyệt không hỗ trợ lưu cục bộ (OPFS). Hãy dùng Chrome/Edge mới.");
+  }
   const dir = await getDir();
   const fn  = safeName(filename);
-  const fh  = await dir.getFileHandle(fn, { create: true });
-  const writable = await fh.createWritable();
   const payload = {
     _v:        SESSION_VERSION,
     _name:     displayName || fn.replace(/\.json$/, ""),
@@ -69,18 +89,39 @@ export async function writeSession(filename, state, displayName) {
     savedAt:   new Date().toISOString(),
     area:      state.area,
     boundary:  state.boundary ?? null,
-    points:    state.points,
-    roads:     state.roads,
-    cameras:   state.cameras,
-    bbox:      state.bbox,
-    stats:     state.stats,
-    rawIntersections:      state.rawIntersections,
-    rawWays:               state.rawWays,
-    rawSignalNodes:        state.rawSignalNodes,
-    intersectionOverrides: state.intersectionOverrides,
+    points:    state.points        || [],
+    roads:     state.roads         || [],
+    cameras:   state.cameras       || [],
+    bbox:      state.bbox          || null,
+    stats:     state.stats         || {},
+    rawIntersections:      state.rawIntersections   || [],
+    rawWays:               state.rawWays            || [],
+    rawSignalNodes:        state.rawSignalNodes      || [],
+    intersectionOverrides: state.intersectionOverrides || {},
   };
-  await writable.write(JSON.stringify(payload));
-  await writable.close();
+  const json = JSON.stringify(payload);
+
+  const fh = await dir.getFileHandle(fn, { create: true });
+
+  // Prefer createWritable (Chrome/Edge/Safari 17+/Firefox 111+),
+  // fall back to createSyncAccessHandle when only that is available.
+  if (typeof fh.createWritable === "function") {
+    const writable = await fh.createWritable();
+    await writable.write(json);
+    await writable.close();
+  } else if (typeof fh.createSyncAccessHandle === "function") {
+    const sah = await fh.createSyncAccessHandle();
+    try {
+      const buf = new TextEncoder().encode(json);
+      sah.truncate(0);
+      sah.write(buf, { at: 0 });
+      sah.flush();
+    } finally {
+      sah.close();
+    }
+  } else {
+    throw new Error("Trình duyệt không hỗ trợ ghi file vào OPFS.");
+  }
   return fn;
 }
 

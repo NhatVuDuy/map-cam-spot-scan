@@ -163,18 +163,24 @@ const useScanStore = create((set, get) => ({
    */
   saveToSystem: async (displayName) => {
     const state = get();
-    const name = displayName
+    const name = (displayName
       || state.sessionDisplayName
-      || `Phiên ${new Date().toLocaleString("vi-VN")}`;
+      || `Phiên ${new Date().toLocaleString("vi-VN")}`).replace(/\.json$/i, "");
     const filename = state.sessionFilename || null;
 
+    set({ progress: `Đang lưu "${name}"...`, error: null });
     try {
       const saved = await writeSession(filename || name, state, name);
-      set({ sessionFilename: saved, sessionDisplayName: name });
+      set({
+        sessionFilename: saved,
+        sessionDisplayName: name,
+        progress: `Đã lưu "${name}"`,
+        error: null,
+      });
       await get().refreshSessions();
-      set({ progress: `Đã lưu "${name}"` });
     } catch (e) {
-      set({ error: `Lưu thất bại: ${e.message}` });
+      console.error("[saveToSystem] failed:", e);
+      set({ error: `Lưu thất bại: ${e.message || e}`, progress: "" });
     }
   },
 
