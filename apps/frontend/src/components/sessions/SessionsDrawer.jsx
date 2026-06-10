@@ -143,7 +143,7 @@ function SavePrompt({ defaultName, onSave, onCancel }) {
         padding: "1.25rem", width: "260px",
       }}>
         <div style={{ fontSize: "0.8rem", color: C.text, marginBottom: "0.75rem", fontWeight: 600 }}>
-          Đặt tên cho phiên làm việc
+          Đặt tên cho dự án
         </div>
         <input
           autoFocus
@@ -253,7 +253,7 @@ export default function SessionsDrawer({ open, onClose }) {
         }}>
           <div style={{ display: "flex", alignItems: "center", marginBottom: "0.7rem" }}>
             <span style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text, flex: 1 }}>
-              🗂 Phiên làm việc
+              🗂 Dự án
             </span>
             <button onClick={onClose} style={{
               background: "none", border: "none", color: C.muted,
@@ -266,7 +266,7 @@ export default function SessionsDrawer({ open, onClose }) {
             <button
               onClick={handleSave}
               disabled={!hasData || loading}
-              title={sessionFilename ? `Lưu đè vào "${sessionDisplayName}"` : "Lưu phiên hiện tại vào hệ thống"}
+              title={sessionFilename ? `Lưu đè vào "${sessionDisplayName}"` : "Lưu dự án vào hệ thống"}
               style={{
                 ...btnStyle(C.green, true),
                 flex: 1, opacity: hasData ? 1 : 0.4,
@@ -326,7 +326,7 @@ export default function SessionsDrawer({ open, onClose }) {
               background: `${C.orange}10`, border: `1px solid ${C.orange}30`,
               borderRadius: "6px", marginBottom: "0.5rem",
             }}>
-              Trình duyệt không hỗ trợ IndexedDB. Tính năng lưu phiên không khả dụng.
+              Trình duyệt không hỗ trợ IndexedDB. Tính năng lưu dự án không khả dụng.
             </div>
           )}
 
@@ -341,7 +341,7 @@ export default function SessionsDrawer({ open, onClose }) {
               textAlign: "center", color: C.muted, fontSize: "0.75rem",
               padding: "2rem 1rem", lineHeight: 1.7,
             }}>
-              Chưa có phiên nào được lưu.<br />
+              Chưa có dự án nào được lưu.<br />
               Quét một khu vực rồi nhấn <strong style={{ color: C.green }}>Lưu vào hệ thống</strong>.
             </div>
           )}
@@ -362,7 +362,7 @@ export default function SessionsDrawer({ open, onClose }) {
         {/* Relative-positioned overlays */}
         {showSavePrompt && (
           <SavePrompt
-            defaultName={sessionDisplayName || `Phiên ${new Date().toLocaleString("vi-VN")}`}
+            defaultName={sessionDisplayName || `Dự án ${new Date().toLocaleString("vi-VN")}`}
             onSave={handleSaveConfirm}
             onCancel={() => setShowSavePrompt(false)}
           />
@@ -378,7 +378,7 @@ export default function SessionsDrawer({ open, onClose }) {
               padding: "1.25rem", width: "240px",
             }}>
               <div style={{ fontSize: "0.8rem", color: C.text, marginBottom: "0.75rem" }}>
-                Xoá phiên này?
+                Xoá dự án này?
               </div>
               <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
                 <button onClick={() => setConfirmDelete(null)} style={btnStyle(C.muted, false)}>Huỷ</button>

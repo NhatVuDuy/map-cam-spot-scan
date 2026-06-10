@@ -65,8 +65,8 @@ export default function Header() {
         <button
           style={S.btn("#A78BFA")}
           onClick={() => setShowSessions(true)}
-          title="Quản lý phiên làm việc"
-        >🗂 Phiên</button>
+          title="Quản lý dự án"
+        >🗂 Dự án</button>
 
         <button style={S.navBtn} onClick={() => navigate("/sys")}
           onMouseEnter={e => e.target.style.color = "#A78BFA"}

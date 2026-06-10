@@ -165,7 +165,7 @@ const useScanStore = create((set, get) => ({
     const state = get();
     const name = (displayName
       || state.sessionDisplayName
-      || `Phiên ${new Date().toLocaleString("vi-VN")}`).replace(/\.json$/i, "");
+      || `Dự án ${new Date().toLocaleString("vi-VN")}`).replace(/\.json$/i, "");
     const filename = state.sessionFilename || null;
 
     set({ progress: `Đang lưu "${name}"...`, error: null });
@@ -186,7 +186,7 @@ const useScanStore = create((set, get) => ({
 
   /** Open a session from OPFS and restore state. */
   loadFromSystem: async (filename) => {
-    set({ loading: true, error: null, progress: "Đang mở phiên..." });
+    set({ loading: true, error: null, progress: "Đang mở dự án..." });
     try {
       const data = await readSession(filename);
       set({
