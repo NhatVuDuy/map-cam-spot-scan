@@ -132,8 +132,9 @@ const useScanStore = create((set, get) => ({
       points: [], roads: [], cameras: [],
       rawIntersections: [], rawWays: [], rawSignalNodes: [],
       intersectionOverrides: {},
-      // Keep sessionFilename/sessionDisplayName so user can still save over the
-      // same project after the scan. The ScanButton warns them first.
+      // Mark as unsaved (○) but keep the display name so user knows which project
+      // they were on and can still save/overwrite after the scan.
+      sessionFilename: null,
       selectedPoint: null,
     });
 

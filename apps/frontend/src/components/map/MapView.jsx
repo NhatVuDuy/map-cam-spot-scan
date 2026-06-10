@@ -747,8 +747,10 @@ function MapViewInner() {
       map.setLayoutProperty("boundary-line", "visibility", "none");
       map.setLayoutProperty("radius-fill",   "visibility", "visible");
       map.setLayoutProperty("radius-line",   "visibility", "visible");
+      // Re-sync radius data in case area changed (e.g. after loading a project)
+      map.getSource("radius")?.setData(circleGeoJSON(area.lat, area.lng, area.radiusM));
     }
-  }, [mapReady, boundary]);
+  }, [mapReady, boundary, area.lat, area.lng, area.radiusM]);
 
   // ── 3. Update roads ─────────────────────────────────────────────────────────
   useEffect(() => {
