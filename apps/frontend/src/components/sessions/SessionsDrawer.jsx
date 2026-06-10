@@ -326,7 +326,7 @@ export default function SessionsDrawer({ open, onClose }) {
               background: `${C.orange}10`, border: `1px solid ${C.orange}30`,
               borderRadius: "6px", marginBottom: "0.5rem",
             }}>
-              Trình duyệt này không hỗ trợ OPFS. Dùng Chrome hoặc Edge để lưu tập trung.
+              Trình duyệt không hỗ trợ IndexedDB. Tính năng lưu phiên không khả dụng.
             </div>
           )}
 

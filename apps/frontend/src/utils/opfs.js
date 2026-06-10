@@ -1,90 +1,59 @@
 /**
- * OPFS (Origin Private File System) wrapper for session storage.
- * All sessions live in: OPFS root / "cam-scan-sessions" / <name>.json
+ * Session storage backed by IndexedDB.
  *
- * OPFS is sandboxed per-origin, persists across page reloads, and is
- * invisible to the user's Downloads folder — perfect for an app-managed
- * project folder.
+ * IndexedDB works on both HTTP and HTTPS, has generous storage quota
+ * (hundreds of MB), and persists across page reloads — a better fit
+ * than OPFS for apps that may be served without TLS.
+ *
+ * Public API mirrors the original OPFS module so no callers need changes.
  */
 
 import { SESSION_VERSION } from "./sessionFile.js";
 
-const SESSION_DIR = "cam-scan-sessions";
+const DB_NAME   = "cam-scan-db";
+const STORE     = "sessions";
+const DB_VER    = 1;
 
-async function getDir() {
-  const root = await navigator.storage.getDirectory();
-  return root.getDirectoryHandle(SESSION_DIR, { create: true });
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(STORE, { keyPath: "filename" });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+function tx(db, mode, fn) {
+  return new Promise((resolve, reject) => {
+    const t  = db.transaction(STORE, mode);
+    const st = t.objectStore(STORE);
+    const req = fn(st);
+    if (req) {
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror   = (e) => reject(e.target.error);
+    } else {
+      t.oncomplete = () => resolve();
+      t.onerror    = (e) => reject(e.target.error);
+    }
+  });
 }
 
 function safeName(name) {
-  // Sanitise to a valid filename; keep extension
   return name.replace(/[\\/:*?"<>|]/g, "_").replace(/\.json$/i, "") + ".json";
 }
 
-/** List all sessions, newest first. Returns [] if OPFS unavailable. */
-export async function listSessions() {
-  if (!navigator.storage?.getDirectory) return [];
-  try {
-    const dir = await getDir();
-    const out = [];
-    // Support older Chrome where .entries() is missing — fall back to .values()
-    const iter = typeof dir.entries === "function" ? dir.entries() : null;
-    if (iter) {
-      for await (const [filename, handle] of iter) {
-        if (handle.kind !== "file" || !filename.endsWith(".json")) continue;
-        const meta = await readMeta(handle, filename);
-        if (meta) out.push(meta);
-      }
-    } else {
-      for await (const handle of dir.values()) {
-        if (handle.kind !== "file" || !handle.name.endsWith(".json")) continue;
-        const meta = await readMeta(handle, handle.name);
-        if (meta) out.push(meta);
-      }
-    }
-    return out.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
-  } catch (e) {
-    console.error("[opfs] listSessions failed:", e);
-    return [];
-  }
+function buildAreaLabel(area) {
+  if (!area) return "";
+  return `${area.lat?.toFixed(4)},${area.lng?.toFixed(4)} r=${area.radiusM}m`;
 }
 
-async function readMeta(handle, filename) {
-  try {
-    const file = await handle.getFile();
-    const data = JSON.parse(await file.text());
-    return {
-      filename,
-      displayName:  data._name      || filename.replace(/\.json$/, ""),
-      savedAt:      data.savedAt    || new Date(file.lastModified).toISOString(),
-      pointCount:   data.points?.length   || 0,
-      cameraCount:  data.cameras?.length  || 0,
-      areaLabel:    data._areaLabel || "",
-    };
-  } catch (e) {
-    console.warn("[opfs] skipping corrupt file:", filename, e);
-    return null;
-  }
-}
-
-/** Read and parse a session by filename. */
-export async function readSession(filename) {
-  const dir = await getDir();
-  const fh  = await dir.getFileHandle(filename);
-  const file = await fh.getFile();
-  return JSON.parse(await file.text());
-}
-
-/** Write state to OPFS under the given filename. */
-export async function writeSession(filename, state, displayName) {
-  if (!navigator.storage?.getDirectory) {
-    throw new Error("Trình duyệt không hỗ trợ lưu cục bộ (OPFS). Hãy dùng Chrome/Edge mới.");
-  }
-  const dir = await getDir();
-  const fn  = safeName(filename);
-  const payload = {
+function buildRecord(filename, state, displayName) {
+  return {
+    filename,
     _v:        SESSION_VERSION,
-    _name:     displayName || fn.replace(/\.json$/, ""),
+    _name:     displayName || filename.replace(/\.json$/, ""),
     _areaLabel: state._areaLabel || buildAreaLabel(state.area),
     savedAt:   new Date().toISOString(),
     area:      state.area,
@@ -99,71 +68,96 @@ export async function writeSession(filename, state, displayName) {
     rawSignalNodes:        state.rawSignalNodes      || [],
     intersectionOverrides: state.intersectionOverrides || {},
   };
-  const json = JSON.stringify(payload);
+}
 
-  const fh = await dir.getFileHandle(fn, { create: true });
-
-  // Prefer createWritable (Chrome/Edge/Safari 17+/Firefox 111+),
-  // fall back to createSyncAccessHandle when only that is available.
-  if (typeof fh.createWritable === "function") {
-    const writable = await fh.createWritable();
-    await writable.write(json);
-    await writable.close();
-  } else if (typeof fh.createSyncAccessHandle === "function") {
-    const sah = await fh.createSyncAccessHandle();
-    try {
-      const buf = new TextEncoder().encode(json);
-      sah.truncate(0);
-      sah.write(buf, { at: 0 });
-      sah.flush();
-    } finally {
-      sah.close();
-    }
-  } else {
-    throw new Error("Trình duyệt không hỗ trợ ghi file vào OPFS.");
+/** List all sessions, newest first. */
+export async function listSessions() {
+  try {
+    const db = await openDB();
+    const records = await new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror   = (e) => reject(e.target.error);
+    });
+    return records
+      .map(r => ({
+        filename:    r.filename,
+        displayName: r._name      || r.filename.replace(/\.json$/, ""),
+        savedAt:     r.savedAt    || "",
+        pointCount:  r.points?.length   || 0,
+        cameraCount: r.cameras?.length  || 0,
+        areaLabel:   r._areaLabel || "",
+      }))
+      .sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+  } catch (e) {
+    console.error("[idb] listSessions failed:", e);
+    return [];
   }
+}
+
+/** Read a full session record by filename. */
+export async function readSession(filename) {
+  const db  = await openDB();
+  const rec = await tx(db, "readonly", st => st.get(filename));
+  if (!rec) throw new Error(`Không tìm thấy phiên "${filename}"`);
+  return rec;
+}
+
+/** Save state to IndexedDB under the given filename. */
+export async function writeSession(filename, state, displayName) {
+  const fn  = safeName(filename);
+  const rec = buildRecord(fn, state, displayName);
+  const db  = await openDB();
+  await new Promise((resolve, reject) => {
+    const req = db.transaction(STORE, "readwrite").objectStore(STORE).put(rec);
+    req.onsuccess = () => resolve();
+    req.onerror   = (e) => reject(e.target.error);
+  });
   return fn;
 }
 
-/** Delete a session file from OPFS. */
+/** Delete a session. */
 export async function deleteSession(filename) {
-  const dir = await getDir();
-  await dir.removeEntry(filename);
+  const db = await openDB();
+  await new Promise((resolve, reject) => {
+    const req = db.transaction(STORE, "readwrite").objectStore(STORE).delete(filename);
+    req.onsuccess = () => resolve();
+    req.onerror   = (e) => reject(e.target.error);
+  });
 }
 
-/** Rename a session (rewrites file with new _name + new filename). */
+/** Rename a session (change _name + filename key). */
 export async function renameSession(oldFilename, newDisplayName) {
-  const data = await readSession(oldFilename);
+  const old = await readSession(oldFilename);
   const newFilename = safeName(newDisplayName);
-  const dir = await getDir();
-
-  // Write under new name
-  const fh = await dir.getFileHandle(newFilename, { create: true });
-  const writable = await fh.createWritable();
-  await writable.write(JSON.stringify({ ...data, _name: newDisplayName }));
-  await writable.close();
-
-  // Remove old if different
-  if (newFilename !== oldFilename) await dir.removeEntry(oldFilename);
+  const db  = await openDB();
+  const t   = db.transaction(STORE, "readwrite");
+  const st  = t.objectStore(STORE);
+  await new Promise((res, rej) => {
+    const req = st.put({ ...old, filename: newFilename, _name: newDisplayName });
+    req.onsuccess = () => res();
+    req.onerror   = (e) => rej(e.target.error);
+  });
+  if (newFilename !== oldFilename) {
+    await new Promise((res, rej) => {
+      const req = st.delete(oldFilename);
+      req.onsuccess = () => res();
+      req.onerror   = (e) => rej(e.target.error);
+    });
+  }
   return newFilename;
 }
 
-/** Trigger a browser download of a session from OPFS. */
+/** Download a session from IndexedDB to the user's filesystem. */
 export async function downloadSession(filename) {
   const data = await readSession(filename);
   const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
-  a.href = url;
-  a.download = filename;
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-function buildAreaLabel(area) {
-  if (!area) return "";
-  return `${area.lat?.toFixed(4)},${area.lng?.toFixed(4)} r=${area.radiusM}m`;
-}
-
-export const opfsAvailable = () => !!navigator.storage?.getDirectory;
+export const opfsAvailable = () => typeof indexedDB !== "undefined";
