@@ -435,7 +435,7 @@ function MapViewInner() {
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     map.addControl(new maplibregl.ScaleControl(), "bottom-right");
 
-    map.on("load", () => {
+    map.on("load", () => { try {
       // Load all icons synchronously (canvas → ImageData — no async fetch)
       loadCamIcons(map);
       loadIxIcons(map);
@@ -524,7 +524,9 @@ function MapViewInner() {
       const ixShapeFilter   = ["all", ixFilter, ["!=", ["coalesce", ["get", "intersectionShape"], "minor"], "minor"]];
       const ixMinorFilter   = ["all", ixFilter, ["==", ["coalesce", ["get", "intersectionShape"], "minor"], "minor"]];
 
-      // Minor intersections: filled circles (same style as before)
+      // Minor intersections: filled circles sized by road class.
+      // IMPORTANT: interpolate stop outputs must be literal numbers in MapLibre GL JS.
+      // Use step on zoom with a nested case on roadClass — both with literal outputs.
       map.addLayer({
         id: "intersections-minor",
         type: "circle",
@@ -533,9 +535,27 @@ function MapViewInner() {
         paint: {
           "circle-color": "#FF6B6B",
           "circle-radius": [
-            "interpolate", ["linear"], ["zoom"],
-            10, ["step", ["coalesce", ["get", "roadClass"], 0], 2, 1, 3, 2, 4, 3, 6, 4, 7, 5, 9],
-            16, ["step", ["coalesce", ["get", "roadClass"], 0], 4, 1, 6, 2, 8, 3, 12, 4, 15, 5, 18],
+            "step", ["zoom"],
+            // zoom < 12
+            ["case",
+              [">=", ["coalesce", ["get", "roadClass"], 0], 4], 5,
+              [">=", ["coalesce", ["get", "roadClass"], 0], 2], 4,
+              3
+            ],
+            12,
+            // zoom 12–15
+            ["case",
+              [">=", ["coalesce", ["get", "roadClass"], 0], 4], 8,
+              [">=", ["coalesce", ["get", "roadClass"], 0], 2], 6,
+              4
+            ],
+            15,
+            // zoom >= 15
+            ["case",
+              [">=", ["coalesce", ["get", "roadClass"], 0], 4], 14,
+              [">=", ["coalesce", ["get", "roadClass"], 0], 2], 10,
+              6
+            ]
           ],
           "circle-opacity": 0.9,
           "circle-stroke-width": 2,
@@ -710,7 +730,9 @@ function MapViewInner() {
       });
 
       setMapReady(true);
-    });
+    } catch (err) {
+      console.error("[MapView] map.on('load') setup error:", err);
+    }});
 
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; markerRef.current = null; };
