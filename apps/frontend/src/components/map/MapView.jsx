@@ -570,16 +570,9 @@ function MapViewInner() {
         filter: ixShapeFilter,
         layout: {
           "icon-image": ["concat", "ix-", ["coalesce", ["get", "intersectionShape"], "minor"]],
-          // icon-size: MapLibre requires literal numbers as interpolate stop outputs.
-          // We differentiate alley (needs ~1.5× to compensate for top-half canvas)
-          // from quad/tri using a case at the top level, each branch a plain
-          // interpolate with zoom and literal stop values.
-          "icon-size": [
-            "case",
-            ["==", ["coalesce", ["get", "intersectionShape"], ""], "alley"],
-            ["interpolate", ["linear"], ["zoom"], 10, 0.75, 13, 1.10, 16, 1.55],
-            ["interpolate", ["linear"], ["zoom"], 10, 0.50, 13, 0.75, 16, 1.05]
-          ],
+          // icon-size: MapLibre GL JS does not support interpolate expressions as
+          // case-expression outputs. Use a flat interpolate with literal stops only.
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.6, 13, 0.9, 16, 1.3],
           // Rotate alley rectangle toward the alley arm
           "icon-rotate": [
             "case",
