@@ -68,6 +68,10 @@ export default function Header() {
           title="Quản lý dự án"
         >🗂 Dự án</button>
 
+        <button style={S.navBtn} onClick={() => navigate("/plan")}
+          onMouseEnter={e => e.target.style.color = "#FBBF24"}
+          onMouseLeave={e => e.target.style.color = "#64748b"}
+        >📊 Kế hoạch</button>
         <button style={S.navBtn} onClick={() => navigate("/sys")}
           onMouseEnter={e => e.target.style.color = "#A78BFA"}
           onMouseLeave={e => e.target.style.color = "#64748b"}

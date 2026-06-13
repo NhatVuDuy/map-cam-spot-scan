@@ -174,6 +174,10 @@ export default function Landing() {
           <Tag color={C.cyan}>v2.5.5</Tag>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <button onClick={() => navigate("/plan")} style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: C.dim, fontSize: "0.85rem", padding: "0.3rem 0.6rem",
+          }}>Kế hoạch</button>
           <button onClick={() => navigate("/sys")} style={{
             background: "none", border: "none", cursor: "pointer",
             color: C.dim, fontSize: "0.85rem", padding: "0.3rem 0.6rem",
