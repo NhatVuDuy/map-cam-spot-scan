@@ -239,7 +239,7 @@ export default function Sys() {
             <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>System Architecture</span>
           </div>
         </div>
-        <button onClick={() => navigate("/map")} style={{
+        <button onClick={() => navigate("/scan")} style={{
           background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
           border: "none", borderRadius: "8px",
           padding: "0.4rem 1.1rem",
@@ -588,7 +588,7 @@ export default function Sys() {
             borderRadius: "8px", padding: "0.6rem 1.5rem",
             color: C.dim, cursor: "pointer", fontSize: "0.85rem",
           }}>← Home</button>
-          <button onClick={() => navigate("/map")} style={{
+          <button onClick={() => navigate("/scan")} style={{
             background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
             border: "none", borderRadius: "8px",
             padding: "0.6rem 1.5rem",

@@ -43,8 +43,8 @@ export default function Header() {
   return (
     <>
       <header style={S.header}>
-        <span style={{ fontSize: "1.25rem" }}>📹</span>
-        <span style={S.title}>Camera Placement Scanner</span>
+        <span style={{ fontSize: "1.25rem", cursor: "pointer" }} onClick={() => navigate("/")}>📹</span>
+        <span style={{ ...S.title, cursor: "pointer" }} onClick={() => navigate("/")}>Camera Placement Scanner</span>
         <span style={S.version}>v{version}</span>
         <div style={S.spacer} />
 
@@ -76,7 +76,7 @@ export default function Header() {
           onMouseEnter={e => e.target.style.color = "#A78BFA"}
           onMouseLeave={e => e.target.style.color = "#64748b"}
         >📐 Arch</button>
-        <button style={S.navBtn} onClick={() => navigate("/info")}
+        <button style={S.navBtn} onClick={() => navigate("/")}
           onMouseEnter={e => e.target.style.color = "#38BDF8"}
           onMouseLeave={e => e.target.style.color = "#64748b"}
         >ℹ️ Info</button>

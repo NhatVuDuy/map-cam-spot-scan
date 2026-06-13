@@ -182,7 +182,7 @@ export default function Landing() {
             background: "none", border: "none", cursor: "pointer",
             color: C.dim, fontSize: "0.85rem", padding: "0.3rem 0.6rem",
           }}>Architecture</button>
-          <button onClick={() => navigate("/map")} style={{
+          <button onClick={() => navigate("/scan")} style={{
             background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
             border: "none", borderRadius: "8px",
             padding: "0.45rem 1.2rem",
@@ -224,7 +224,7 @@ export default function Landing() {
           </p>
 
           <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={() => navigate("/map")} style={{
+            <button onClick={() => navigate("/scan")} style={{
               background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
               border: "none", borderRadius: "12px",
               padding: "0.85rem 2.2rem",
@@ -236,6 +236,16 @@ export default function Landing() {
               onMouseEnter={e => { e.target.style.transform = "scale(1.04)"; e.target.style.boxShadow = `0 0 60px ${C.cyan}66`; }}
               onMouseLeave={e => { e.target.style.transform = "scale(1)"; e.target.style.boxShadow = `0 0 40px ${C.cyan}44`; }}
             >🚀 Bắt đầu quét</button>
+            <button onClick={() => navigate("/plan")} style={{
+              background: `linear-gradient(135deg, ${C.amber}22, ${C.orange}11)`,
+              border: `1px solid ${C.amber}55`,
+              borderRadius: "12px", padding: "0.85rem 2.2rem",
+              color: C.amber, fontWeight: 700, fontSize: "1rem", cursor: "pointer",
+              transition: "border-color 0.2s, color 0.2s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.amber; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = `${C.amber}55`; }}
+            >📊 Ước lượng camera</button>
             <button onClick={() => navigate("/sys")} style={{
               background: "none",
               border: `1px solid ${C.border}`,
@@ -451,7 +461,7 @@ export default function Landing() {
           <h2 style={{ fontSize: "2rem", fontWeight: 800, marginBottom: "0.75rem" }}>Sẵn sàng quét?</h2>
           <p style={{ color: C.dim, marginBottom: "2rem", fontSize: "0.95rem" }}>Không cần cài đặt, không cần tài khoản. Chạy ngay trên trình duyệt.</p>
           <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={() => navigate("/map")} style={{
+            <button onClick={() => navigate("/scan")} style={{
               background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
               border: "none", borderRadius: "12px",
               padding: "0.85rem 2.5rem",

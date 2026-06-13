@@ -10,12 +10,13 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/"     element={<Scanner />} />
-        <Route path="/info" element={<Landing />} />
+        <Route path="/"     element={<Landing />} />
+        <Route path="/scan" element={<Scanner />} />
         <Route path="/sys"  element={<Sys />} />
         <Route path="/plan" element={<Plan />} />
-        {/* Legacy redirect */}
-        <Route path="/map"  element={<Navigate to="/" replace />} />
+        {/* Legacy redirects */}
+        <Route path="/info" element={<Navigate to="/" replace />} />
+        <Route path="/map"  element={<Navigate to="/scan" replace />} />
         <Route path="*"     element={<NotFound />} />
       </Routes>
     </HashRouter>
