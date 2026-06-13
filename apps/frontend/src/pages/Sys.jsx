@@ -146,9 +146,10 @@ function ScanFlowDiagram() {
     { label: "Overpass API",      sub: "nodes + ways JSON\n(center / geom tags)",         color: C.green,  icon: "🌐" },
     { label: "normalizeElements()", sub: "classify tags\nextract coords",                 color: C.cyan,   icon: "⚙️" },
     { label: "Spatial Filter",    sub: "withinRadius()\npointInPolygon()\ndedup 20m",     color: C.violet, icon: "🔍" },
-    { label: "detectIntersections()", sub: "node-sharing O(n)\nwayIds.size ≥ 2",         color: C.pink,   icon: "🔀" },
-    { label: "scorePoints()",     sub: "priority score\n→ sort desc → slice(maxResults)", color: C.amber,  icon: "📊" },
-    { label: "MapView + Table",   sub: "MapLibre layers\nresultsTable rows",              color: C.green,  icon: "🗺️" },
+    { label: "detectIntersections()", sub: "node-sharing O(n)\nshape: quad/tri/alley/minor\nhasSignal check",  color: C.pink,   icon: "🔀" },
+    { label: "planAllCameras()", sub: "CAM1 (đường dài)\nCAM2/2.1/2.2/2.3 (giao lộ)\nCAM_alley (đầu hẻm)", color: C.green, icon: "📷" },
+    { label: "scorePoints()",    sub: "priority score\n→ sort desc → slice(maxResults)",  color: C.amber,  icon: "📊" },
+    { label: "MapView + Table",  sub: "MapLibre layers\nresultsTable rows\ncameras-symbol", color: C.cyan, icon: "🗺️" },
   ];
 
   return (
@@ -285,8 +286,8 @@ export default function Sys() {
             title="Algorithm Layer"
             icon="⚙️"
             color={C.violet}
-            modules={["classifier.js", "intersection.js", "spatialFilter.js", "pointInPolygon.js", "geo.js"]}
-            note="Tất cả pure functions — không có I/O, không có side effects. Dễ test, dễ thay thế. Chạy đồng bộ trên main thread."
+            modules={["classifier.js", "intersection.js", "cameraPlacement.js", "spatialFilter.js", "pointInPolygon.js", "geo.js", "bearing.js"]}
+            note="Tất cả pure functions — không có I/O, không có side effects. cameraPlacement.js lên sơ đồ CAM1/CAM2/CAM_alley; bearing.js tính góc/offset theo Haversine."
           />
 
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", color: C.muted, fontSize: "0.78rem" }}>
@@ -299,8 +300,8 @@ export default function Sys() {
             title="State Layer"
             icon="🏪"
             color={C.amber}
-            modules={["scanStore.js (Zustand)"]}
-            note="Single source of truth: area, categories, boundary, points, roads, loading, error, selectedPoint, hoveredPoint. runScan() là action orchestrator chính."
+            modules={["scanStore.js (Zustand)", "opfs.js (IndexedDB)", "sessionFile.js"]}
+            note="Single source of truth: area, categories, boundary, points, roads, cameras, rawIntersections, intersectionOverrides, sessionFilename, sessionDisplayName, sessions[]. runScan() là orchestrator chính; saveToSystem/loadFromSystem/deleteFromSystem quản lý dự án qua IndexedDB."
           />
 
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", color: C.muted, fontSize: "0.78rem" }}>
@@ -313,8 +314,8 @@ export default function Sys() {
             title="UI Layer (React components)"
             icon="🖥️"
             color={C.pink}
-            modules={["Landing.jsx", "Scanner.jsx", "Sys.jsx", "Header.jsx", "Sidebar.jsx", "MapView.jsx", "ResultsTable.jsx", "Legend.jsx", "AreaSelector.jsx", "BoundarySelector.jsx", "AdminSearch.jsx", "CategoryFilter.jsx", "ScanButton.jsx"]}
-            note="MapView dùng maplibregl trực tiếp (không dùng React wrapper). Mọi interaction (click/drag marker, click row bảng) update store → re-render chỉ components liên quan."
+            modules={["Landing.jsx", "Scanner.jsx", "Sys.jsx", "Header.jsx", "Sidebar.jsx", "MapView.jsx", "ResultsTable.jsx", "Legend.jsx", "AreaSelector.jsx", "BoundarySelector.jsx", "AdminSearch.jsx", "CategoryFilter.jsx", "ScanButton.jsx", "SessionsDrawer.jsx", "ConfirmDialog.jsx", "MapContextMenu.jsx"]}
+            note="MapView dùng maplibregl trực tiếp (không dùng React wrapper). SessionsDrawer quản lý danh sách dự án IndexedDB. Mọi interaction update store → re-render chỉ components liên quan."
           />
         </div>
 
@@ -408,9 +409,12 @@ export default function Sys() {
           {/* algorithms */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "10px", overflow: "hidden" }}>
             <div style={{ padding: "0.75rem 1.25rem", borderBottom: `1px solid ${C.border}`, fontSize: "0.72rem", fontWeight: 700, color: C.violet }}>📂 algorithms/</div>
-            <FileRow path="intersection.js" badge="key" badgeColor={C.pink} desc="Node-sharing giao lộ"
-              inputs={["ways[] (geom)", "center", "radiusM"]}
-              outputs={["IntersectionPoint[]"]} />
+            <FileRow path="intersection.js" badge="key" badgeColor={C.pink} desc="Node-sharing giao lộ + phân loại shape"
+              inputs={["ways[] (geom)", "center", "radiusM", "signalNodes[]"]}
+              outputs={["IntersectionPoint[] {shape, armBearings, armClasses, hasSignal}"]} />
+            <FileRow path="cameraPlacement.js" badge="key" badgeColor={C.green} desc="Lên sơ đồ camera từ giao lộ + đường dài"
+              inputs={["intersections[]", "ways[]", "signalNodes[]", "center", "radiusM"]}
+              outputs={["Camera[] {id, lat, lng, bearing, type}"]} />
             <FileRow path="classifier.js" badge="pure" badgeColor={C.dim} desc="OSM tags → category"
               inputs={["tags {amenity, leisure, …}"]}
               outputs={["category string | null"]} />
@@ -425,9 +429,18 @@ export default function Sys() {
             <FileRow path="geo.js" badge="pure" badgeColor={C.dim} desc="haversine, getBBox, circleGeoJSON"
               inputs={["lat, lng, radiusM"]}
               outputs={["bbox[], distance, GeoJSON Feature"]} />
+            <FileRow path="bearing.js" badge="pure" badgeColor={C.dim} desc="bearingBetween, offsetPoint, interpolateAlong"
+              inputs={["lat1,lng1,lat2,lng2 hoặc bearing+dist"]}
+              outputs={["bearing °", "{lat,lng} điểm offset"]} />
             <FileRow path="pointInPolygon.js" badge="pure" badgeColor={C.dim} desc="Ray-casting PIP + geometryBBox"
               inputs={["[lng,lat]", "GeoJSON geometry"]}
               outputs={["boolean", "[minLng,minLat,maxLng,maxLat]"]} />
+            <FileRow path="opfs.js" badge="storage" badgeColor={C.amber} desc="IndexedDB: lưu/đọc/xóa/đổi tên dự án"
+              inputs={["filename, state, displayName"]}
+              outputs={["SessionMeta[] / saved filename"]} />
+            <FileRow path="sessionFile.js" badge="io" badgeColor={C.dim} desc="Import/export file JSON ngoài hệ thống"
+              inputs={["File object"]}
+              outputs={["parsed session state"]} />
             <FileRow path="categories.js" badge="config" badgeColor={C.muted} desc="Category metadata (màu, icon)"
               inputs={[]}
               outputs={["CATEGORIES constant"]} />
@@ -436,9 +449,12 @@ export default function Sys() {
           {/* store + components */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "10px", overflow: "hidden" }}>
             <div style={{ padding: "0.75rem 1.25rem", borderBottom: `1px solid ${C.border}`, fontSize: "0.72rem", fontWeight: 700, color: C.amber }}>📂 store/ & pages/</div>
-            <FileRow path="store/scanStore.js" badge="zustand" badgeColor={C.amber} desc="Global state + runScan action"
+            <FileRow path="store/scanStore.js" badge="zustand" badgeColor={C.amber} desc="Global state + runScan + session actions"
               inputs={["user actions"]}
-              outputs={["points, roads, loading, error, …"]} />
+              outputs={["points, roads, cameras, rawIntersections, intersectionOverrides, sessions[], …"]} />
+            <FileRow path="sessions/SessionsDrawer.jsx" badge="ui" badgeColor={C.violet} desc="Quản lý dự án IndexedDB (open/rename/export/delete)"
+              inputs={["sessions[] từ store"]}
+              outputs={["calls loadFromSystem / renameInSystem / deleteFromSystem / exportFromSystem"]} />
             <FileRow path="pages/Scanner.jsx" badge="route /map" badgeColor={C.cyan} desc="Layout: Header + Sidebar + Map + Table"
               inputs={[]}
               outputs={[]} />
@@ -465,13 +481,18 @@ export default function Sys() {
             </thead>
             <tbody>
               {[
-                ["radius-src",    "radius-fill / radius-line", "fill + line", "circleGeoJSON(center, radiusM)", "boundary == null"],
-                ["boundary-src",  "boundary-fill / boundary-line", "fill + line", "boundary.geometry (Polygon)", "boundary != null"],
-                ["roads-src",     "road-layer",     "line",   "ways[].geometry → [lng,lat][]", "always (khi có roads)"],
-                ["points-src",    "points-halo",    "circle", "points[] GeoJSON",               "filtered by category"],
-                ["points-src",    "points-circle",  "circle", "points[] GeoJSON",               "above halo"],
-                ["points-src",    "points-selected","circle", "selectedPoint.id filter",        "highlight #FACC15"],
-                ["points-src",    "points-label",   "symbol", "name field",                     "zoom >= 14"],
+                ["radius",          "radius-fill / radius-line",        "fill + line", "circleGeoJSON(center, radiusM)",              "boundary == null"],
+                ["boundary",        "boundary-fill / boundary-line",    "fill + line", "boundary.geometry (Polygon)",                 "boundary != null"],
+                ["roads",           "road-layer",                       "line",        "ways[].geometry → [lng,lat][]",               "always"],
+                ["points",          "points-halo",                      "circle",      "points[] GeoJSON",                            "POIs only (filter ≠ intersection)"],
+                ["points",          "points-circle",                    "circle",      "points[] GeoJSON",                            "POIs only"],
+                ["points",          "points-selected",                  "circle",      "selectedPoint.id filter",                     "highlight #FACC15"],
+                ["points",          "points-label",                     "symbol",      "name field",                                  "zoom ≥ 14, POIs only"],
+                ["points",          "intersections-minor",              "circle",      "category=intersection, shape=minor",          "circle sized by roadClass"],
+                ["points",          "intersections-symbol",             "symbol",      "category=intersection, shape≠minor",          "ix-quad/ix-tri/ix-alley icons, icon-rotate=alleyBearing"],
+                ["points",          "intersections-signal",             "circle",      "shape≠minor, hasSignal=true",                 "dot vàng #FBBF24"],
+                ["points",          "intersections-label",              "symbol",      "name field",                                  "zoom ≥ 15, intersections only"],
+                ["cameras",         "cameras-symbol",                   "symbol",      "cameras[] GeoJSON",                           "cam-icon-{type}, icon-anchor=bottom, icon-rotate=bearing"],
               ].map(([src, layer, type, data, cond]) => (
                 <tr key={layer} style={{ borderBottom: `1px solid ${C.border}22` }}>
                   <td style={{ padding: "0.6rem 1rem" }}><code style={{ fontSize: "0.73rem", color: C.cyan }}>{src}</code></td>
@@ -483,6 +504,48 @@ export default function Sys() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* ── CAMERA PLACEMENT ───────────────────────────────────────────── */}
+        <SectionTitle tag="Algorithm" title="Camera Placement (cameraPlacement.js)" sub="Lên sơ đồ đặt camera tự động dựa trên loại giao lộ và đường dài." />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "3.5rem" }}>
+          {[
+            { type: "CAM1",        color: C.cyan,   title: "Đường dài > 1km",          desc: "Đặt 1 cam/3km dọc đường, lọc theo bán kính quét. type: cam1" },
+            { type: "CAM2 / 2.2",  color: C.amber,  title: "Giao lộ lớn + đèn",        desc: "3 cam/nhánh: 2 outbound+inbound (right lane) + 1 outbound (left lane). type: cam2 / cam22" },
+            { type: "CAM2.1/2.3",  color: C.pink,   title: "Giao lộ lớn không đèn",    desc: "2 cam/nhánh tại cùng điểm, tips chạm nhau (icon-anchor: bottom). type: cam21 / cam23" },
+            { type: "CAM_alley",   color: C.green,  title: "Đầu hẻm",                  desc: "2 cam tại miệng hẻm (5m vào trong), inbound + outbound. type: cam_alley" },
+            { type: "Alley arm",   color: C.violet, title: "Xác định hướng hẻm",       desc: "Priority: user override (alleyArmBearing) → mixed road class (minClass) → T-junction branch → fallback armBearings[0]." },
+            { type: "Back-to-back",color: C.dim,    title: "Tips-touch icon layout",    desc: "icon-anchor: bottom → 2 cam cùng anchor xoay ngược nhau, bases nhìn ra ngoài, tips chạm nhau." },
+          ].map(({ type, color, title, desc }) => (
+            <div key={type} style={{ background: C.card, border: `1px solid ${color}33`, borderLeft: `3px solid ${color}`, borderRadius: "10px", padding: "1rem 1.25rem" }}>
+              <div style={{ fontSize: "0.68rem", fontWeight: 700, color, marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>{type}</div>
+              <div style={{ fontSize: "0.82rem", fontWeight: 700, color: C.text, marginBottom: "0.4rem" }}>{title}</div>
+              <div style={{ fontSize: "0.75rem", color: C.dim, lineHeight: 1.6 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── SESSION MANAGEMENT ─────────────────────────────────────────── */}
+        <SectionTitle tag="Storage" title="Quản lý dự án (IndexedDB)" sub="Lưu/đọc kết quả scan và overrides vào trình duyệt — không cần backend, không cần HTTPS." />
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "10px", padding: "1.5rem", marginBottom: "3.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            {[
+              { action: "saveToSystem(name)",      color: C.cyan,   desc: "Lưu đè nếu đã có sessionFilename, tạo mới nếu chưa. Header chip: ○ → ●." },
+              { action: "saveSessionAs(name)",     color: C.violet, desc: "Luôn tạo dự án mới, không đè file cũ." },
+              { action: "loadFromSystem(file)",    color: C.green,  desc: "Đọc session từ IndexedDB, khôi phục toàn bộ state kể cả intersectionOverrides." },
+              { action: "loadExternalFile(file)",  color: C.amber,  desc: "Load file JSON bên ngoài. Không tự thêm vào IDB, user cần bấm Lưu." },
+              { action: "deleteFromSystem(file)",  color: C.red,    desc: "Xóa session khỏi IDB, xóa sessionFilename nếu đang mở." },
+              { action: "renameInSystem(old, new)",color: C.pink,   desc: "Đổi tên session trong IDB và cập nhật sessionFilename nếu đang mở." },
+            ].map(({ action, color, desc }) => (
+              <div key={action} style={{ background: C.bg2, border: `1px solid ${color}22`, borderRadius: "8px", padding: "0.85rem 1rem" }}>
+                <code style={{ fontSize: "0.75rem", color, display: "block", marginBottom: "0.4rem" }}>{action}</code>
+                <div style={{ fontSize: "0.76rem", color: C.dim, lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: "1rem", padding: "0.75rem 1rem", background: C.bg2, borderRadius: "6px", border: `1px solid ${C.border}`, fontSize: "0.76rem", color: C.muted, lineHeight: 1.7 }}>
+            <strong style={{ color: C.text }}>Scan flow:</strong> Mỗi lần quét xóa <code>sessionFilename → null</code> (unsaved ○) nhưng giữ <code>sessionDisplayName</code> để user biết đang ở dự án nào.
+          </div>
         </div>
 
         {/* ── DEPLOY ─────────────────────────────────────────────────────── */}

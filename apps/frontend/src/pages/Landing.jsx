@@ -171,7 +171,7 @@ export default function Landing() {
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
           <span style={{ fontSize: "1.3rem" }}>📹</span>
           <span style={{ fontWeight: 700, color: C.text, letterSpacing: "0.02em" }}>CamSpot</span>
-          <Tag color={C.cyan}>v1.3.0</Tag>
+          <Tag color={C.cyan}>v2.5.5</Tag>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <button onClick={() => navigate("/sys")} style={{
@@ -254,7 +254,8 @@ export default function Landing() {
             {[
               { label: "Loại điểm quét",   val: 8,    suffix: "" },
               { label: "Endpoint Overpass", val: 3,    suffix: "" },
-              { label: "Điểm tối đa/lần",  val: 500,  suffix: "" },
+              { label: "Điểm tối đa/lần",  val: 500,  suffix: "+" },
+              { label: "Camera tối đa",     val: 5000, suffix: "" },
               { label: "Backend cần thiết", val: 0,    suffix: "" },
             ].map(({ label, val, suffix }) => (
               <div key={label} style={{ textAlign: "center" }}>
@@ -318,8 +319,8 @@ export default function Landing() {
               num="03"
               title="Xử lý & hiển thị"
               color={C.green}
-              desc="Phân loại tag → lọc bán kính / polygon → phát hiện giao lộ bằng node-sharing → score → render map + bảng."
-              items={["Node-sharing algorithm: O(n)", "Dedup 20m, score theo độ ưu tiên", "Export CSV / GeoJSON client-side"]}
+              desc="Phân loại tag → lọc bán kính / polygon → phát hiện giao lộ bằng node-sharing → lên vị trí camera → score → render map + bảng."
+              items={["Node-sharing algorithm: O(n)", "Phân loại ngã ba/ngã tư/đầu hẻm + nhận diện đèn tín hiệu", "Lên sơ đồ camera CAM1/CAM2/CAM_alley tự động", "Dedup 20m, score theo độ ưu tiên", "Lưu dự án vào IndexedDB, export JSON/CSV"]}
             />
           </div>
         </div>
@@ -341,11 +342,12 @@ export default function Landing() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
                 {[
-                  ["React 18", "UI framework, HashRouter"],
-                  ["Vite 5", "Build tool, HMR"],
-                  ["MapLibre GL JS", "Bản đồ vector tương tác"],
-                  ["Zustand", "Global state management"],
+                  ["React 18",        "UI framework, HashRouter"],
+                  ["Vite 5",          "Build tool, HMR"],
+                  ["MapLibre GL JS",  "Bản đồ vector tương tác"],
+                  ["Zustand",         "Global state management"],
                   ["React Router v6", "SPA routing (Hash mode)"],
+                  ["IndexedDB",       "Lưu dự án cục bộ (OPFS thay thế)"],
                 ].map(([tech, desc]) => (
                   <tr key={tech} style={{ borderBottom: `1px solid ${C.border}22` }}>
                     <td style={{ padding: "0.7rem 1.5rem", fontWeight: 600, color: C.text, fontSize: "0.84rem", width: "40%" }}>{tech}</td>
@@ -389,11 +391,13 @@ export default function Landing() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
                 {[
-                  ["Node-sharing",  "Phát hiện giao lộ từ ways OSM"],
-                  ["Ray-casting",   "Point-in-polygon (ranh giới)"],
-                  ["Haversine",     "Tính khoảng cách chính xác"],
-                  ["Score ranking", "Ưu tiên điểm theo loại + khoảng cách"],
-                  ["Dedup 20m",     "Loại bỏ điểm trùng trong ~20m"],
+                  ["Node-sharing",      "Phát hiện giao lộ từ ways OSM"],
+                  ["Ray-casting",       "Point-in-polygon (ranh giới)"],
+                  ["Haversine",         "Tính khoảng cách chính xác"],
+                  ["Camera placement",  "Lên sơ đồ CAM1/CAM2/CAM_alley theo giao lộ"],
+                  ["Alley arm detect",  "Xác định hướng đầu hẻm (class + bearing)"],
+                  ["Score ranking",     "Ưu tiên điểm theo loại + khoảng cách"],
+                  ["Dedup 20m",         "Loại bỏ điểm trùng trong ~20m"],
                 ].map(([tech, desc]) => (
                   <tr key={tech} style={{ borderBottom: `1px solid ${C.border}22` }}>
                     <td style={{ padding: "0.7rem 1.5rem", fontWeight: 600, color: C.text, fontSize: "0.84rem", width: "40%" }}>{tech}</td>
@@ -470,7 +474,7 @@ export default function Landing() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         fontSize: "0.78rem", color: C.muted, flexWrap: "wrap", gap: "0.5rem",
       }}>
-        <span>© 2026 CamSpot · Camera Placement Scanner v1.3.0</span>
+        <span>© 2026 CamSpot · Camera Placement Scanner v2.5.5</span>
         <span>Data: OpenStreetMap contributors · dvhcvn · Nominatim</span>
       </div>
 
