@@ -1,7 +1,7 @@
 import { browserScan } from "./browserScan.js";
 
 const CATEGORIES = ["intersection", "school", "hospital", "park", "market", "hotel", "conference", "government"];
-const DELAY_MS = 1600; // stay under Overpass rate-limit (~1 req/s)
+const DELAY_MS = 1600;
 const STORAGE_KEY = "hcm-city-scan-v1";
 
 function wardCenter(geometry) {
@@ -68,56 +68,95 @@ export function aggregateWards(wards) {
   return { camCount, roadKm, cam1, cam2, cam21, camAlley, byCat, completed, errors };
 }
 
-/* ── main scan runner ───────────────────────────────────────────── */
-export async function batchScanCity({ onProgress, onWardDone, signal } = {}) {
+/* ── scan a single ward ─────────────────────────────────────────── */
+async function scanWard(ward) {
+  const { name, code } = ward.properties;
+  const center = wardCenter(ward.geometry);
+  const result = await browserScan(
+    { area: center, categories: CATEGORIES, boundary: ward, options: { maxResults: 800 } },
+    () => {}
+  );
+  return {
+    name, code,
+    camCount: result.cameras.length,
+    byCat: result.meta.byCategory || {},
+    roadKm: calcRoadKm(result.roads),
+    cam1:     result.cameras.filter(c => c.type === "cam1").length,
+    cam2:     result.cameras.filter(c => ["cam2", "cam22"].includes(c.type)).length,
+    cam21:    result.cameras.filter(c => ["cam21", "cam23"].includes(c.type)).length,
+    camAlley: result.cameras.filter(c => c.type === "cam_alley").length,
+    durationMs: result.meta.durationMs,
+    error: null,
+  };
+}
+
+/* ── load ward features from geojson ───────────────────────────── */
+export async function loadWardFeatures() {
   const resp = await fetch("/data/hcm-boundaries.geojson");
   const geojson = await resp.json();
-  const wards = geojson.features.filter(f => f.properties.type === "ward");
+  return geojson.features.filter(f => f.properties.type === "ward");
+}
 
-  const results = [];
+/* ── main scan runner ───────────────────────────────────────────── */
+/**
+ * @param {Object} opts
+ * @param {string[]} [opts.onlyCodes]  - if set, scan only these ward codes (for retry)
+ * @param {Object[]} [opts.existingResults] - existing results map (to merge into)
+ * @param {Function} opts.onProgress
+ * @param {Function} opts.onWardDone  (wardResult, index, allResults)
+ * @param {AbortSignal} opts.signal
+ */
+export async function batchScanCity({ onlyCodes, existingResults = [], onProgress, onWardDone, signal } = {}) {
+  const wards = await loadWardFeatures();
 
-  for (let i = 0; i < wards.length; i++) {
+  // Build a mutable result map: code → result
+  const resultMap = {};
+  for (const r of existingResults) resultMap[r.code] = r;
+
+  // Decide which wards to scan
+  const toScan = onlyCodes
+    ? wards.filter(w => onlyCodes.includes(w.properties.code))
+    : wards.filter(w => !resultMap[w.properties.code] || resultMap[w.properties.code].error);
+
+  const total = toScan.length;
+
+  for (let i = 0; i < total; i++) {
     if (signal?.aborted) break;
 
-    const ward = wards[i];
+    const ward = toScan[i];
     const { name, code } = ward.properties;
+    const overallIdx = wards.findIndex(w => w.properties.code === code);
 
-    onProgress?.({ current: i + 1, total: wards.length, wardName: name, pct: Math.round((i / wards.length) * 100) });
+    onProgress?.({
+      current: i + 1,
+      total,
+      wardName: name,
+      pct: Math.round((i / total) * 100),
+      overallDone: Object.keys(resultMap).filter(k => !resultMap[k].error).length,
+      overallTotal: wards.length,
+    });
 
     try {
-      const center = wardCenter(ward.geometry);
-      const result = await browserScan(
-        { area: center, categories: CATEGORIES, boundary: ward, options: { maxResults: 800 } },
-        () => {}
-      );
-
-      const cam1 = result.cameras.filter(c => c.type === "cam1").length;
-      const cam2 = result.cameras.filter(c => ["cam2", "cam22"].includes(c.type)).length;
-      const cam21 = result.cameras.filter(c => ["cam21", "cam23"].includes(c.type)).length;
-      const camAlley = result.cameras.filter(c => c.type === "cam_alley").length;
-
-      const wardResult = {
-        name, code,
-        camCount: result.cameras.length,
-        byCat: result.meta.byCategory || {},
-        roadKm: calcRoadKm(result.roads),
-        cam1, cam2, cam21, camAlley,
-        durationMs: result.meta.durationMs,
-        error: null,
-      };
-
-      results.push(wardResult);
-      onWardDone?.(wardResult, i, results);
+      const wardResult = await scanWard(ward);
+      resultMap[code] = wardResult;
     } catch (err) {
-      const wardResult = { name, code, error: err.message, camCount: 0, byCat: {}, roadKm: 0, cam1: 0, cam2: 0, cam21: 0, camAlley: 0 };
-      results.push(wardResult);
-      onWardDone?.(wardResult, i, results);
+      resultMap[code] = {
+        name, code, error: err.message,
+        camCount: 0, byCat: {}, roadKm: 0, cam1: 0, cam2: 0, cam21: 0, camAlley: 0,
+      };
     }
 
-    if (i < wards.length - 1 && !signal?.aborted) {
+    // Preserve original ward order
+    const allOrdered = wards
+      .map(w => resultMap[w.properties.code])
+      .filter(Boolean);
+
+    onWardDone?.(resultMap[code], overallIdx, allOrdered);
+
+    if (i < total - 1 && !signal?.aborted) {
       await new Promise(r => setTimeout(r, DELAY_MS));
     }
   }
 
-  return results;
+  return wards.map(w => resultMap[w.properties.code]).filter(Boolean);
 }

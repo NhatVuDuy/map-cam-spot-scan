@@ -192,45 +192,95 @@ function useEstimate() {
 
 /* ─── batch scan hook ─────────────────────────────────────────────────────── */
 function useBatchScan() {
-  const [status, setStatus]     = useState("idle"); // idle|running|done|error
-  const [progress, setProgress] = useState({ current: 0, total: 168, wardName: "", pct: 0 });
+  const [status, setStatus]         = useState("idle"); // idle|resumable|running|done|error
+  const [scanMode, setScanMode]     = useState("full"); // full|resume|retry
+  const [progress, setProgress]     = useState({ current: 0, total: 168, wardName: "", pct: 0 });
   const [wardResults, setWardResults] = useState(() => loadCityScanCache()?.wards || null);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [errorMsg, setErrorMsg]     = useState("");
   const abortRef = useRef(null);
 
   const aggregate = useMemo(() => wardResults ? aggregateWards(wardResults) : null, [wardResults]);
 
-  const start = useCallback(async () => {
+  // Restore status from cache on mount
+  useEffect(() => {
+    const cache = loadCityScanCache();
+    if (!cache?.wards?.length) return;
+    const failedCount = cache.wards.filter(w => w.error).length;
+    const total = 168;
+    if (cache.wards.length < total || failedCount > 0) {
+      // Partial or has errors → resumable
+      setStatus("resumable");
+    } else {
+      setStatus("done");
+    }
+  }, []);
+
+  async function runScan({ mode, existing = [] }) {
     if (status === "running") return;
-    clearCityScanCache();
-    setWardResults(null);
     setStatus("running");
+    setScanMode(mode);
     setErrorMsg("");
 
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const accumulated = [];
+    const onlyCodes = mode === "retry"
+      ? existing.filter(w => w.error).map(w => w.code)
+      : mode === "resume"
+      ? undefined // batchScanCity auto-skips already-done wards
+      : undefined;
+
+    // For fresh start, clear cache
+    if (mode === "full") {
+      clearCityScanCache();
+      setWardResults(null);
+    }
 
     try {
       await batchScanCity({
+        onlyCodes,
+        existingResults: mode === "full" ? [] : existing,
         signal: controller.signal,
-        onProgress: (p) => setProgress(p),
-        onWardDone: (ward, _i, all) => {
-          accumulated.push(ward);
+        onProgress: p => setProgress(p),
+        onWardDone: (_ward, _i, all) => {
           setWardResults([...all]);
           saveCityScanCache({ wards: all, savedAt: Date.now() });
         },
       });
-      setStatus("done");
+
+      if (!controller.signal.aborted) {
+        setStatus("done");
+      } else {
+        // Stopped by user — check if there are remaining wards
+        const cache = loadCityScanCache();
+        const remaining = (cache?.wards?.length || 0) < 168
+          || (cache?.wards || []).some(w => w.error);
+        setStatus(remaining ? "resumable" : "done");
+      }
     } catch (err) {
-      if (err.name !== "AbortError") {
+      if (err.name === "AbortError") {
+        const cache = loadCityScanCache();
+        const hasPartial = cache?.wards?.length > 0;
+        setStatus(hasPartial ? "resumable" : "idle");
+      } else {
         setErrorMsg(err.message);
         setStatus("error");
-      } else {
-        setStatus(accumulated.length > 0 ? "done" : "idle");
       }
     }
+  }
+
+  const startFresh = useCallback(() => {
+    runScan({ mode: "full", existing: [] });
+  }, [status]);
+
+  const resume = useCallback(() => {
+    const cache = loadCityScanCache();
+    runScan({ mode: "resume", existing: cache?.wards || [] });
+  }, [status]);
+
+  const retryFailed = useCallback(() => {
+    const cache = loadCityScanCache();
+    runScan({ mode: "retry", existing: cache?.wards || [] });
   }, [status]);
 
   const stop = useCallback(() => {
@@ -246,13 +296,7 @@ function useBatchScan() {
     setErrorMsg("");
   }, []);
 
-  // restore status from cache
-  useEffect(() => {
-    const cache = loadCityScanCache();
-    if (cache?.wards?.length > 0) setStatus("done");
-  }, []);
-
-  return { status, progress, wardResults, aggregate, errorMsg, start, stop, reset };
+  return { status, scanMode, progress, wardResults, aggregate, errorMsg, startFresh, resume, retryFailed, stop, reset };
 }
 
 /* ─── city scan dashboard ─────────────────────────────────────────────────── */
@@ -527,7 +571,7 @@ function CityDashboard({ agg, wardResults }) {
 }
 
 /* ─── scan progress UI ────────────────────────────────────────────────────── */
-function ScanProgress({ progress, wardResults, onStop }) {
+function ScanProgress({ progress, scanMode, wardResults, onStop }) {
   const agg = wardResults ? aggregateWards(wardResults) : null;
 
   return (
@@ -536,7 +580,9 @@ function ScanProgress({ progress, wardResults, onStop }) {
         {/* Progress header */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🗺️</div>
-          <div style={{ fontSize: "1.1rem", fontWeight: 800, color: C.text }}>Đang quét toàn TP.HCM</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: 800, color: C.text }}>
+            {scanMode === "retry" ? "Đang thử lại các phường lỗi" : scanMode === "resume" ? "Đang tiếp tục quét TP.HCM" : "Đang quét toàn TP.HCM"}
+          </div>
           <div style={{ fontSize: "0.8rem", color: C.dim, marginTop: "0.3rem" }}>
             Phường {progress.current}/{progress.total} — {progress.wardName}
           </div>
@@ -603,36 +649,105 @@ function ScanProgress({ progress, wardResults, onStop }) {
   );
 }
 
-/* ─── start scan panel ────────────────────────────────────────────────────── */
-function StartPanel({ onStart, navigate }) {
+/* ─── start / resumable panel ─────────────────────────────────────────────── */
+function StartPanel({ status, wardResults, aggregate, onStartFresh, onResume, onRetryFailed, navigate }) {
+  const isResumable = status === "resumable";
+  const failedCount = wardResults ? wardResults.filter(w => w.error).length : 0;
+  const doneCount   = wardResults ? wardResults.filter(w => !w.error).length : 0;
+
   return (
-    <div style={{ minHeight: "72vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.5rem" }}>
-      <div style={{ fontSize: "3.5rem" }}>🗺️</div>
+    <div style={{ minHeight: "72vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.5rem", padding: "2rem" }}>
+      <div style={{ fontSize: "3.5rem" }}>{isResumable ? "⏸️" : "🗺️"}</div>
+
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: "1.25rem", fontWeight: 800, color: C.text, marginBottom: "0.5rem" }}>Thống kê camera TP.HCM</div>
-        <div style={{ fontSize: "0.85rem", color: C.dim, maxWidth: "440px", lineHeight: 1.7 }}>
-          Quét toàn bộ <strong style={{ color: C.cyan }}>168 phường/xã TP.HCM</strong> từ OpenStreetMap để tính số camera chính xác theo từng loại địa điểm. Khoảng <strong style={{ color: C.amber }}>5–10 phút</strong>, kết quả được lưu để dùng lại.
+        <div style={{ fontSize: "1.25rem", fontWeight: 800, color: C.text, marginBottom: "0.5rem" }}>
+          {isResumable ? "Đã tạm dừng giữa chừng" : "Thống kê camera TP.HCM"}
+        </div>
+        <div style={{ fontSize: "0.85rem", color: C.dim, maxWidth: "460px", lineHeight: 1.7 }}>
+          {isResumable ? (
+            <>
+              Đã quét <strong style={{ color: C.green }}>{doneCount} phường</strong> thành công
+              {failedCount > 0 && <>, <strong style={{ color: C.red }}>{failedCount} phường lỗi</strong></>}.
+              Kết quả được lưu trong localStorage. Bạn có thể tiếp tục hoặc thử lại các phường lỗi.
+            </>
+          ) : (
+            <>
+              Quét toàn bộ <strong style={{ color: C.cyan }}>168 phường/xã TP.HCM</strong> từ OpenStreetMap
+              để tính số camera chính xác theo từng loại địa điểm. Khoảng <strong style={{ color: C.amber }}>5–10 phút</strong>,
+              kết quả lưu tự động — reload trang không mất dữ liệu.
+            </>
+          )}
         </div>
       </div>
+
+      {/* Resume partial progress bar */}
+      {isResumable && wardResults && (
+        <div style={{ width: "100%", maxWidth: "460px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: C.muted, marginBottom: "0.4rem" }}>
+            <span>{doneCount}/{168} phường hoàn tất</span>
+            {failedCount > 0 && <span style={{ color: C.red }}>{failedCount} lỗi</span>}
+          </div>
+          <div style={{ height: "8px", background: C.border, borderRadius: "100px", overflow: "hidden", display: "flex" }}>
+            <div style={{ flex: doneCount, background: C.green, transition: "flex 0.5s" }} />
+            <div style={{ flex: failedCount, background: C.red, opacity: 0.6 }} />
+            <div style={{ flex: 168 - doneCount - failedCount, background: "transparent" }} />
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
-        <button onClick={onStart} style={{
-          background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
-          border: "none", borderRadius: "10px", padding: "0.75rem 2rem",
-          color: "#fff", fontWeight: 800, fontSize: "0.9rem", cursor: "pointer",
-        }}>🚀 Bắt đầu quét toàn TP.HCM</button>
+        {isResumable ? (
+          <>
+            {/* Resume: continue from where we left off (skip done wards) */}
+            {doneCount + failedCount < 168 && (
+              <button onClick={onResume} style={{
+                background: `linear-gradient(135deg, ${C.green}, ${C.cyan})`,
+                border: "none", borderRadius: "10px", padding: "0.75rem 2rem",
+                color: "#fff", fontWeight: 800, fontSize: "0.9rem", cursor: "pointer",
+              }}>▶ Tiếp tục ({168 - doneCount - failedCount} phường còn lại)</button>
+            )}
+            {/* Retry only failed wards */}
+            {failedCount > 0 && (
+              <button onClick={onRetryFailed} style={{
+                background: `linear-gradient(135deg, ${C.amber}, ${C.orange})`,
+                border: "none", borderRadius: "10px", padding: "0.75rem 1.75rem",
+                color: "#000", fontWeight: 800, fontSize: "0.9rem", cursor: "pointer",
+              }}>🔁 Thử lại {failedCount} phường lỗi</button>
+            )}
+            {/* View partial results */}
+            {aggregate && doneCount > 0 && (
+              <button onClick={() => {
+                // Force status to "done" by saving a "viewed" flag — simplest: just call onResume with empty
+                // We re-use onResume but we actually just want to view — handled by parent
+                onResume("view");
+              }} style={{
+                background: C.card2, border: `1px solid ${C.border}`, borderRadius: "10px",
+                padding: "0.75rem 1.5rem", color: C.dim, fontWeight: 600, fontSize: "0.85rem", cursor: "pointer",
+              }}>📊 Xem kết quả tạm ({doneCount} phường)</button>
+            )}
+          </>
+        ) : (
+          <button onClick={onStartFresh} style={{
+            background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
+            border: "none", borderRadius: "10px", padding: "0.75rem 2rem",
+            color: "#fff", fontWeight: 800, fontSize: "0.9rem", cursor: "pointer",
+          }}>🚀 Bắt đầu quét toàn TP.HCM</button>
+        )}
         <button onClick={() => navigate("/scan")} style={{
           background: C.card2, border: `1px solid ${C.border}`, borderRadius: "10px",
           padding: "0.75rem 1.5rem", color: C.dim, fontWeight: 600, fontSize: "0.85rem", cursor: "pointer",
         }}>← Quét thủ công một vùng</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.6rem", width: "100%", maxWidth: "500px" }}>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.6rem", width: "100%", maxWidth: "560px" }}>
         {[
           { icon: "📍", text: "168 phường/xã" },
           { icon: "🌐", text: "Dữ liệu OSM thực tế" },
-          { icon: "💾", text: "Lưu tự động" },
+          { icon: "💾", text: "Lưu sau mỗi phường" },
+          { icon: "🔁", text: "Retry tự động khi lỗi" },
         ].map(({ icon, text }) => (
-          <div key={text} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "0.6rem", textAlign: "center", fontSize: "0.72rem", color: C.dim }}>
-            <div style={{ fontSize: "1.2rem", marginBottom: "0.25rem" }}>{icon}</div>
+          <div key={text} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "0.6rem", textAlign: "center", fontSize: "0.7rem", color: C.dim }}>
+            <div style={{ fontSize: "1.1rem", marginBottom: "0.25rem" }}>{icon}</div>
             {text}
           </div>
         ))}
@@ -644,12 +759,25 @@ function StartPanel({ onStart, navigate }) {
 /* ─── main page ───────────────────────────────────────────────────────────── */
 export default function Plan() {
   const navigate = useNavigate();
-  const { status, progress, wardResults, aggregate, errorMsg, start, stop, reset } = useBatchScan();
+  const { status, scanMode, progress, wardResults, aggregate, errorMsg,
+          startFresh, resume, retryFailed, stop, reset } = useBatchScan();
+
+  // "view partial" from resumable panel → treat as done for display
+  const [viewPartial, setViewPartial] = useState(false);
 
   const savedAt = useMemo(() => {
     const cache = loadCityScanCache();
     return cache?.savedAt ? new Date(cache.savedAt).toLocaleString("vi-VN") : null;
   }, [wardResults]);
+
+  const showDashboard = (status === "done" || viewPartial) && aggregate;
+  const failedCount   = wardResults ? wardResults.filter(w => w.error).length : 0;
+
+  function handleResumeOrView(mode) {
+    if (mode === "view") { setViewPartial(true); return; }
+    setViewPartial(false);
+    resume();
+  }
 
   return (
     <div style={{ background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh" }}>
@@ -667,20 +795,20 @@ export default function Plan() {
           <Tag color={C.amber}>1.1M KẾ HOẠCH 2026–2029</Tag>
         </div>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {status === "done" && (
-            <>
-              {savedAt && <span style={{ fontSize: "0.65rem", color: C.muted }}>Lưu lúc {savedAt}</span>}
-              <button onClick={reset} style={{
-                fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
-                background: `${C.red}18`, border: `1px solid ${C.red}44`, color: C.red,
-              }}>🔄 Quét lại</button>
-            </>
+          {showDashboard && savedAt && (
+            <span style={{ fontSize: "0.65rem", color: C.muted }}>Lưu lúc {savedAt}</span>
           )}
-          {status === "idle" && wardResults && (
-            <button onClick={reset} style={{
-              fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer",
-              background: `${C.muted}18`, border: `1px solid ${C.muted}44`, color: C.muted,
-            }}>Xóa cache</button>
+          {showDashboard && failedCount > 0 && (
+            <button onClick={retryFailed} style={{
+              fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
+              background: `${C.amber}18`, border: `1px solid ${C.amber}44`, color: C.amber,
+            }}>🔁 Retry {failedCount} lỗi</button>
+          )}
+          {showDashboard && (
+            <button onClick={() => { setViewPartial(false); reset(); }} style={{
+              fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
+              background: `${C.red}18`, border: `1px solid ${C.red}44`, color: C.red,
+            }}>🔄 Quét lại từ đầu</button>
           )}
           <button onClick={() => navigate("/scan")} style={{
             fontSize: "0.74rem", padding: "4px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
@@ -691,14 +819,31 @@ export default function Plan() {
 
       {/* ── CONTENT ──────────────────────────────────────────────────────── */}
       {status === "running" ? (
-        <ScanProgress progress={progress} wardResults={wardResults} onStop={stop} />
-      ) : status === "done" && aggregate ? (
+        <ScanProgress progress={progress} scanMode={scanMode} wardResults={wardResults} onStop={stop} />
+      ) : showDashboard ? (
         <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "1.25rem 1.25rem 3rem" }}>
+          {/* Partial warning banner */}
+          {(viewPartial || (status === "done" && failedCount > 0)) && (
+            <div style={{
+              marginBottom: "1rem", padding: "0.6rem 1rem",
+              background: `${C.amber}0d`, border: `1px solid ${C.amber}33`, borderRadius: "8px",
+              display: "flex", alignItems: "center", gap: "0.6rem", fontSize: "0.78rem",
+            }}>
+              <span>⚠️</span>
+              <span style={{ color: C.amber, fontWeight: 600 }}>
+                {viewPartial
+                  ? `Đang xem kết quả tạm — chưa quét hết (${aggregate.completed}/168 phường). `
+                  : `${failedCount} phường lỗi, không tính vào kết quả. `}
+                <button onClick={() => { setViewPartial(false); retryFailed(); }}
+                  style={{ background: "none", border: "none", color: C.cyan, cursor: "pointer", fontWeight: 700, textDecoration: "underline" }}>
+                  Thử lại ngay →
+                </button>
+              </span>
+            </div>
+          )}
           <CityDashboard agg={aggregate} wardResults={wardResults} />
-
-          {/* Footer */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", fontSize: "0.7rem", color: C.muted, borderTop: `1px solid ${C.border}`, paddingTop: "1rem" }}>
-            <span>Dữ liệu thực tế từ OpenStreetMap · {aggregate.completed} phường/xã TP.HCM · CamSpot v2.5.5</span>
+            <span>Dữ liệu thực tế từ OpenStreetMap · {aggregate.completed} phường/xã TP.HCM · CamSpot v2.6.0</span>
             <div style={{ display: "flex", gap: "1rem" }}>
               <button onClick={() => navigate("/")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.7rem" }}>Home</button>
               <button onClick={() => navigate("/scan")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.7rem" }}>Scanner</button>
@@ -711,13 +856,27 @@ export default function Plan() {
           <div style={{ fontSize: "2rem" }}>❌</div>
           <div style={{ color: C.red, fontWeight: 700 }}>Lỗi khi quét</div>
           <div style={{ fontSize: "0.8rem", color: C.muted, maxWidth: "400px", textAlign: "center" }}>{errorMsg}</div>
-          <button onClick={reset} style={{
-            background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`, borderRadius: "8px",
-            padding: "0.6rem 1.5rem", color: C.cyan, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
-          }}>Thử lại</button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button onClick={resume} style={{
+              background: `${C.amber}18`, border: `1px solid ${C.amber}44`, borderRadius: "8px",
+              padding: "0.6rem 1.5rem", color: C.amber, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
+            }}>▶ Tiếp tục từ điểm dừng</button>
+            <button onClick={reset} style={{
+              background: `${C.muted}18`, border: `1px solid ${C.muted}44`, borderRadius: "8px",
+              padding: "0.6rem 1rem", color: C.muted, fontWeight: 600, fontSize: "0.85rem", cursor: "pointer",
+            }}>Xóa & quét lại</button>
+          </div>
         </div>
       ) : (
-        <StartPanel onStart={start} navigate={navigate} />
+        <StartPanel
+          status={status}
+          wardResults={wardResults}
+          aggregate={aggregate}
+          onStartFresh={startFresh}
+          onResume={handleResumeOrView}
+          onRetryFailed={retryFailed}
+          navigate={navigate}
+        />
       )}
     </div>
   );
