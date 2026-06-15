@@ -4,16 +4,18 @@ import Landing from "./pages/Landing.jsx";
 import Scanner from "./pages/Scanner.jsx";
 import Sys from "./pages/Sys.jsx";
 import Plan from "./pages/Plan.jsx";
+import CityMap from "./pages/CityMap.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/"     element={<Landing />} />
-        <Route path="/scan" element={<Scanner />} />
-        <Route path="/sys"  element={<Sys />} />
-        <Route path="/plan" element={<Plan />} />
+        <Route path="/"          element={<Landing />} />
+        <Route path="/scan"      element={<Scanner />} />
+        <Route path="/sys"       element={<Sys />} />
+        <Route path="/plan"      element={<Plan />} />
+        <Route path="/city-map"  element={<CityMap />} />
         {/* Legacy redirects */}
         <Route path="/info" element={<Navigate to="/" replace />} />
         <Route path="/map"  element={<Navigate to="/scan" replace />} />

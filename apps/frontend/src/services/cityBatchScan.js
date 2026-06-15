@@ -160,3 +160,48 @@ export async function batchScanCity({ onlyCodes, existingResults = [], onProgres
 
   return wards.map(w => resultMap[w.properties.code]).filter(Boolean);
 }
+
+/* ── export utilities ───────────────────────────────────────────── */
+export function exportJSON(wards) {
+  const cache = loadCityScanCache();
+  const payload = {
+    meta: {
+      exportedAt: new Date().toISOString(),
+      city: "TP.HCM",
+      totalWards: wards.length,
+      completed: wards.filter(w => !w.error).length,
+      errors: wards.filter(w => w.error).length,
+    },
+    aggregate: aggregateWards(wards),
+    wards,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `hcm-camera-scan-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function exportCSV(wards) {
+  const header = ["Phường/xã", "Mã", "Camera", "CAM1", "CAM2", "CAM2.1", "CAM Hẻm", "Đường (km)",
+    "Giao lộ", "Trường học", "Bệnh viện", "Chợ/TTTM", "Công viên", "Khách sạn", "Hội nghị", "Cơ quan", "Ghi chú"];
+  const rows = wards.map(w => [
+    w.name, w.code,
+    w.camCount || 0, w.cam1 || 0, w.cam2 || 0, w.cam21 || 0, w.camAlley || 0,
+    (w.roadKm || 0).toFixed(2),
+    w.byCat?.intersection || 0, w.byCat?.school || 0, w.byCat?.hospital || 0,
+    w.byCat?.market || 0, w.byCat?.park || 0, w.byCat?.hotel || 0,
+    w.byCat?.conference || 0, w.byCat?.government || 0,
+    w.error ? `Lỗi: ${w.error}` : "",
+  ]);
+  const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }); // BOM for Excel
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `hcm-camera-scan-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

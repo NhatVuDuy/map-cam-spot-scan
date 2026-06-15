@@ -4,6 +4,7 @@ import useScanStore from "../store/scanStore.js";
 import {
   batchScanCity, aggregateWards,
   loadCityScanCache, saveCityScanCache, clearCityScanCache,
+  exportJSON, exportCSV,
 } from "../services/cityBatchScan.js";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
@@ -804,11 +805,27 @@ export default function Plan() {
               background: `${C.amber}18`, border: `1px solid ${C.amber}44`, color: C.amber,
             }}>🔁 Retry {failedCount} lỗi</button>
           )}
+          {showDashboard && wardResults && (
+            <>
+              <button onClick={() => navigate("/city-map")} style={{
+                fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
+                background: `${C.green}18`, border: `1px solid ${C.green}44`, color: C.green,
+              }}>🗺 Bản đồ</button>
+              <button onClick={() => exportCSV(wardResults)} style={{
+                fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
+                background: `${C.violet}18`, border: `1px solid ${C.violet}44`, color: C.violet,
+              }}>⬇ CSV</button>
+              <button onClick={() => exportJSON(wardResults)} style={{
+                fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
+                background: `${C.violet}18`, border: `1px solid ${C.violet}44`, color: C.violet,
+              }}>⬇ JSON</button>
+            </>
+          )}
           {showDashboard && (
             <button onClick={() => { setViewPartial(false); reset(); }} style={{
               fontSize: "0.7rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
               background: `${C.red}18`, border: `1px solid ${C.red}44`, color: C.red,
-            }}>🔄 Quét lại từ đầu</button>
+            }}>🔄 Quét lại</button>
           )}
           <button onClick={() => navigate("/scan")} style={{
             fontSize: "0.74rem", padding: "4px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
@@ -844,7 +861,12 @@ export default function Plan() {
           <CityDashboard agg={aggregate} wardResults={wardResults} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", fontSize: "0.7rem", color: C.muted, borderTop: `1px solid ${C.border}`, paddingTop: "1rem" }}>
             <span>Dữ liệu thực tế từ OpenStreetMap · {aggregate.completed} phường/xã TP.HCM · CamSpot v2.6.0</span>
-            <div style={{ display: "flex", gap: "1rem" }}>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+              <button onClick={() => navigate("/city-map")} style={{ background: "none", border: "none", cursor: "pointer", color: C.green, fontSize: "0.7rem", fontWeight: 600 }}>🗺 Bản đồ</button>
+              <button onClick={() => wardResults && exportCSV(wardResults)} style={{ background: "none", border: "none", cursor: "pointer", color: C.violet, fontSize: "0.7rem", fontWeight: 600 }}>⬇ CSV</button>
+              <button onClick={() => wardResults && exportJSON(wardResults)} style={{ background: "none", border: "none", cursor: "pointer", color: C.violet, fontSize: "0.7rem", fontWeight: 600 }}>⬇ JSON</button>
+              <button onClick={() => window.print()} style={{ background: "none", border: "none", cursor: "pointer", color: C.amber, fontSize: "0.7rem", fontWeight: 600 }}>🖨 In / PDF</button>
+              <span style={{ color: C.border }}>|</span>
               <button onClick={() => navigate("/")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.7rem" }}>Home</button>
               <button onClick={() => navigate("/scan")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.7rem" }}>Scanner</button>
               <button onClick={() => navigate("/sys")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.7rem" }}>Kiến trúc</button>
@@ -878,6 +900,14 @@ export default function Plan() {
           navigate={navigate}
         />
       )}
+
+      <style>{`
+        @media print {
+          nav, button { display: none !important; }
+          body { background: #fff !important; color: #000 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+      `}</style>
     </div>
   );
 }
