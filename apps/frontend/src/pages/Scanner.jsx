@@ -4,6 +4,7 @@ import Sidebar from "../components/layout/Sidebar.jsx";
 import RightPanel from "../components/layout/RightPanel.jsx";
 import MapView from "../components/map/MapView.jsx";
 import useScanStore from "../store/scanStore.js";
+import { readWardGeometry } from "../utils/wardGeometryDB.js";
 
 const C = {
   bg: "#060d1a", border: "#1e3354", muted: "#475569",
@@ -63,30 +64,52 @@ export default function Scanner() {
   const [leftOpen, setLeftOpen]   = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [wardBanner, setWardBanner] = useState(null); // { name, cachedStats }
-  const setBoundary = useScanStore(s => s.setBoundary);
-  const runScan     = useScanStore(s => s.runScan);
-  const loading     = useScanStore(s => s.loading);
+  const setBoundary   = useScanStore(s => s.setBoundary);
+  const runScan       = useScanStore(s => s.runScan);
+  const loading       = useScanStore(s => s.loading);
+  const loadFromCache = useScanStore(s => s.loadFromCache);
 
   // Pick up ward boundary passed from CityMap via sessionStorage
   useEffect(() => {
     const raw = sessionStorage.getItem("scanner-boundary");
     if (!raw) return;
     sessionStorage.removeItem("scanner-boundary");
-    try {
-      const feature = JSON.parse(raw);
-      // Load cached stats for the banner (from batch scan)
-      let cachedStats = null;
-      try {
-        const cache = JSON.parse(localStorage.getItem("hcm-city-scan-v1") || "null");
-        const wardData = cache?.wards?.find(w => w.code === feature.properties.code);
-        if (wardData && !wardData.error) cachedStats = wardData;
-      } catch {}
 
-      const wardName = `${feature.properties.ward_type || ""} ${feature.properties.name}`.trim();
-      setWardBanner({ name: wardName, cachedStats });
-      setBoundary(feature);
-      setTimeout(() => runScan(), 300);
-    } catch {}
+    async function load() {
+      try {
+        const feature = JSON.parse(raw);
+        // Load cached stats for the banner (from batch scan)
+        let cachedStats = null;
+        try {
+          const cache = JSON.parse(localStorage.getItem("hcm-city-scan-v1") || "null");
+          const wardData = cache?.wards?.find(w => w.code === feature.properties.code);
+          if (wardData && !wardData.error) cachedStats = wardData;
+        } catch {}
+
+        const wardName = `${feature.properties.ward_type || ""} ${feature.properties.name}`.trim();
+        setWardBanner({ name: wardName, cachedStats });
+        setBoundary(feature);
+
+        // Try to load geometry from IDB (saved by batch city scan) → skip re-scan
+        const code = feature.properties.code;
+        const cached = code ? await readWardGeometry(code).catch(() => null) : null;
+        if (cached && cached.cameras?.length > 0) {
+          loadFromCache({
+            points:           cached.points           || [],
+            cameras:          cached.cameras          || [],
+            roads:            cached.roads            || [],
+            rawIntersections: cached.rawIntersections || [],
+            rawWays:          cached.rawWays          || [],
+            rawSignalNodes:   cached.rawSignalNodes   || [],
+            boundary:         feature,
+          });
+        } else {
+          setTimeout(() => runScan(), 300);
+        }
+      } catch {}
+    }
+
+    load();
   }, []);
 
   // Clear banner once scan finishes

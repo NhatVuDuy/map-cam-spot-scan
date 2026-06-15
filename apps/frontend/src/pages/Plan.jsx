@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import useScanStore from "../store/scanStore.js";
+import useCityStore from "../store/cityStore.js";
 import {
-  batchScanCity, aggregateWards,
-  loadCityScanCache, saveCityScanCache, clearCityScanCache,
+  aggregateWards,
+  loadCityScanCache,
   exportJSON, exportCSV,
 } from "../services/cityBatchScan.js";
 
@@ -191,114 +192,6 @@ function useEstimate() {
   }, [points, cameras, area, roads]);
 }
 
-/* ─── batch scan hook ─────────────────────────────────────────────────────── */
-function useBatchScan() {
-  const [status, setStatus]         = useState("idle"); // idle|resumable|running|done|error
-  const [scanMode, setScanMode]     = useState("full"); // full|resume|retry
-  const [progress, setProgress]     = useState({ current: 0, total: 168, wardName: "", pct: 0 });
-  const [wardResults, setWardResults] = useState(() => loadCityScanCache()?.wards || null);
-  const [errorMsg, setErrorMsg]     = useState("");
-  const abortRef = useRef(null);
-
-  const aggregate = useMemo(() => wardResults ? aggregateWards(wardResults) : null, [wardResults]);
-
-  // Restore status from cache on mount
-  useEffect(() => {
-    const cache = loadCityScanCache();
-    if (!cache?.wards?.length) return;
-    const failedCount = cache.wards.filter(w => w.error).length;
-    const total = 168;
-    if (cache.wards.length < total || failedCount > 0) {
-      // Partial or has errors → resumable
-      setStatus("resumable");
-    } else {
-      setStatus("done");
-    }
-  }, []);
-
-  async function runScan({ mode, existing = [] }) {
-    if (status === "running") return;
-    setStatus("running");
-    setScanMode(mode);
-    setErrorMsg("");
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const onlyCodes = mode === "retry"
-      ? existing.filter(w => w.error).map(w => w.code)
-      : mode === "resume"
-      ? undefined // batchScanCity auto-skips already-done wards
-      : undefined;
-
-    // For fresh start, clear cache
-    if (mode === "full") {
-      clearCityScanCache();
-      setWardResults(null);
-    }
-
-    try {
-      await batchScanCity({
-        onlyCodes,
-        existingResults: mode === "full" ? [] : existing,
-        signal: controller.signal,
-        onProgress: p => setProgress(p),
-        onWardDone: (_ward, _i, all) => {
-          setWardResults([...all]);
-          saveCityScanCache({ wards: all, savedAt: Date.now() });
-        },
-      });
-
-      if (!controller.signal.aborted) {
-        setStatus("done");
-      } else {
-        // Stopped by user — check if there are remaining wards
-        const cache = loadCityScanCache();
-        const remaining = (cache?.wards?.length || 0) < 168
-          || (cache?.wards || []).some(w => w.error);
-        setStatus(remaining ? "resumable" : "done");
-      }
-    } catch (err) {
-      if (err.name === "AbortError") {
-        const cache = loadCityScanCache();
-        const hasPartial = cache?.wards?.length > 0;
-        setStatus(hasPartial ? "resumable" : "idle");
-      } else {
-        setErrorMsg(err.message);
-        setStatus("error");
-      }
-    }
-  }
-
-  const startFresh = useCallback(() => {
-    runScan({ mode: "full", existing: [] });
-  }, [status]);
-
-  const resume = useCallback(() => {
-    const cache = loadCityScanCache();
-    runScan({ mode: "resume", existing: cache?.wards || [] });
-  }, [status]);
-
-  const retryFailed = useCallback(() => {
-    const cache = loadCityScanCache();
-    runScan({ mode: "retry", existing: cache?.wards || [] });
-  }, [status]);
-
-  const stop = useCallback(() => {
-    abortRef.current?.abort();
-  }, []);
-
-  const reset = useCallback(() => {
-    abortRef.current?.abort();
-    clearCityScanCache();
-    setWardResults(null);
-    setStatus("idle");
-    setProgress({ current: 0, total: 168, wardName: "", pct: 0 });
-    setErrorMsg("");
-  }, []);
-
-  return { status, scanMode, progress, wardResults, aggregate, errorMsg, startFresh, resume, retryFailed, stop, reset };
-}
 
 /* ─── city scan dashboard ─────────────────────────────────────────────────── */
 const CAT_META = [
@@ -760,8 +653,14 @@ function StartPanel({ status, wardResults, aggregate, onStartFresh, onResume, on
 /* ─── main page ───────────────────────────────────────────────────────────── */
 export default function Plan() {
   const navigate = useNavigate();
-  const { status, scanMode, progress, wardResults, aggregate, errorMsg,
-          startFresh, resume, retryFailed, stop, reset } = useBatchScan();
+  const {
+    status, scanMode, progress, wardResults, errorMsg,
+    startFresh, resume, retryFailed, stop, reset, initFromCache,
+  } = useCityStore();
+  const aggregate = useMemo(() => wardResults ? aggregateWards(wardResults) : null, [wardResults]);
+
+  // Init from localStorage cache on first mount
+  useEffect(() => { initFromCache(); }, []);
 
   // "view partial" from resumable panel → treat as done for display
   const [viewPartial, setViewPartial] = useState(false);

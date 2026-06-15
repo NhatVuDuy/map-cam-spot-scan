@@ -1,4 +1,5 @@
 import { browserScan } from "./browserScan.js";
+import { writeWardGeometry } from "../utils/wardGeometryDB.js";
 
 const CATEGORIES = ["intersection", "school", "hospital", "park", "market", "hotel", "conference", "government"];
 const DELAY_MS = 1600;
@@ -76,6 +77,16 @@ async function scanWard(ward) {
     { area: center, categories: CATEGORIES, boundary: ward, options: { maxResults: 800 } },
     () => {}
   );
+  // Persist full geometry to IndexedDB (async, non-blocking for count return)
+  writeWardGeometry(code, {
+    points:            result.points            || [],
+    cameras:           result.cameras           || [],
+    roads:             result.roads             || [],
+    rawIntersections:  result.rawIntersections  || [],
+    rawWays:           result.rawWays           || [],
+    rawSignalNodes:    result.rawSignalNodes     || [],
+  }).catch(() => {}); // silently ignore IDB errors — counts are always returned
+
   return {
     name, code,
     camCount: result.cameras.length,

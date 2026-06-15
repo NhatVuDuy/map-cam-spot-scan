@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadCityScanCache, aggregateWards } from "../services/cityBatchScan.js";
+import { aggregateWards } from "../services/cityBatchScan.js";
+import useCityStore from "../store/cityStore.js";
 
 const C = {
   bg: "#060d1a", card: "#0d1829", border: "#1a2e4a",
@@ -55,8 +56,10 @@ export default function CityMap() {
   const [metricKey, setMetricKey] = useState("camCount");
   const [hoveredWard, setHoveredWard] = useState(null);
 
-  const cache = useMemo(() => loadCityScanCache(), []);
-  const wards = cache?.wards || [];
+  const storeWards    = useCityStore(s => s.wardResults);
+  const initFromCache = useCityStore(s => s.initFromCache);
+  useEffect(() => { initFromCache(); }, []);
+  const wards = storeWards || [];
   const agg = useMemo(() => aggregateWards(wards), [wards]);
   const hasData = wards.filter(w => !w.error).length > 0;
 
@@ -253,7 +256,7 @@ export default function CityMap() {
                 <button id="open-in-scanner"
                   style="width:100%;padding:0.45rem;background:linear-gradient(135deg,#38BDF8,#A78BFA);
                     border:none;border-radius:7px;color:#fff;font-weight:800;font-size:0.75rem;cursor:pointer">
-                  🔍 Mở trong Scanner
+                  ⚡ Xem chi tiết phường →
                 </button>
               ` : `<div style="color:#F87171;font-size:0.75rem;margin-bottom:0.5rem">Chưa có dữ liệu quét</div>`}
             </div>
@@ -265,8 +268,14 @@ export default function CityMap() {
           const btn = document.getElementById("open-in-scanner");
           if (btn && feature) {
             btn.onclick = () => {
+              // Store boundary for context (name lookup), navigate to Ward Detail
               sessionStorage.setItem("scanner-boundary", JSON.stringify(feature));
-              navigate("/scan");
+              const code = p.code || feature.properties.code;
+              if (code) {
+                navigate(`/city/ward/${code}`);
+              } else {
+                navigate("/scan");
+              }
             };
           }
         }, 50);
@@ -316,10 +325,10 @@ export default function CityMap() {
             }}>{m.density ? "⊞ " : ""}{m.label}</button>
           ))}
           <div style={{ width: "1px", height: "18px", background: C.border }} />
-          <button onClick={() => navigate("/plan")} style={{
+          <button onClick={() => navigate("/city")} style={{
             fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
             background: `${C.violet}18`, border: `1px solid ${C.violet}44`, color: C.violet,
-          }}>← Thống kê</button>
+          }}>← City Hub</button>
         </div>
       </nav>
 
