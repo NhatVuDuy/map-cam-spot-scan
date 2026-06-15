@@ -11,20 +11,40 @@ const C = {
   violet: "#A78BFA", red: "#F87171", orange: "#FB923C",
 };
 
-/* ── colour scale: blue→yellow→red by camCount ─────────────────── */
-function camColor(count, max) {
-  const t = Math.sqrt(count / Math.max(max, 1));
-  if (t < 0.33) {
-    const u = t / 0.33;
-    return `rgb(${Math.round(56 + u * 96)},${Math.round(189 + u * 30)},${Math.round(248 - u * 120)})`;
-  } else if (t < 0.66) {
-    const u = (t - 0.33) / 0.33;
-    return `rgb(${Math.round(152 + u * 99)},${Math.round(219 - u * 32)},${Math.round(128 - u * 128)})`;
-  } else {
-    const u = (t - 0.66) / 0.34;
-    return `rgb(${Math.round(251)},${Math.round(187 - u * 116)},${Math.round(36 - u * 36)})`;
+/* ── polygon area (Shoelace, spherical approx, returns km²) ────── */
+function polygonAreaKm2(coords) {
+  // coords: array of [lng, lat] rings; use outer ring only
+  const ring = Array.isArray(coords[0][0]) ? coords[0] : coords;
+  let area = 0;
+  const n = ring.length;
+  for (let i = 0; i < n; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % n];
+    area += (x2 - x1) * (y2 + y1);
   }
+  // Convert degrees² to km² (rough: 1° lat ≈ 111.32 km, 1° lng ≈ 111.32·cos(lat) km)
+  const latRad = (ring[0][1] * Math.PI) / 180;
+  const km2 = Math.abs(area / 2) * 111.32 * 111.32 * Math.cos(latRad);
+  return km2;
 }
+
+function geometryAreaKm2(geometry) {
+  if (geometry.type === "Polygon") return polygonAreaKm2(geometry.coordinates);
+  if (geometry.type === "MultiPolygon") {
+    return geometry.coordinates.reduce((s, poly) => s + polygonAreaKm2(poly), 0);
+  }
+  return 0;
+}
+
+/* ── metrics definition ─────────────────────────────────────────── */
+const METRICS = [
+  { key: "camCount",      label: "Camera",         unit: "cam",    density: false },
+  { key: "camDensity",    label: "Camera / km²",   unit: "cam/km²", density: true  },
+  { key: "roadKm",        label: "Đường (km)",      unit: "km",     density: false },
+  { key: "roadDensity",   label: "Đường / km²",    unit: "km/km²", density: true  },
+  { key: "intersection",  label: "Giao lộ",         unit: "nút",    density: false },
+  { key: "ixDensity",     label: "Giao lộ / km²",  unit: "/km²",   density: true  },
+];
 
 export default function CityMap() {
   const navigate = useNavigate();
@@ -32,7 +52,7 @@ export default function CityMap() {
   const mapInstance = useRef(null);
   const popupRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
-  const [metric, setMetric] = useState("camCount"); // camCount | roadKm | intersection
+  const [metricKey, setMetricKey] = useState("camCount");
   const [hoveredWard, setHoveredWard] = useState(null);
 
   const cache = useMemo(() => loadCityScanCache(), []);
@@ -40,7 +60,6 @@ export default function CityMap() {
   const agg = useMemo(() => aggregateWards(wards), [wards]);
   const hasData = wards.filter(w => !w.error).length > 0;
 
-  // Build code→result map
   const wardMap = useMemo(() => {
     const m = {};
     for (const w of wards) m[w.code] = w;
@@ -62,7 +81,7 @@ export default function CityMap() {
             attribution: "© OpenStreetMap contributors",
           },
         },
-        layers: [{ id: "osm", type: "raster", source: "osm-tiles", paint: { "raster-opacity": 0.25 } }],
+        layers: [{ id: "osm", type: "raster", source: "osm-tiles", paint: { "raster-opacity": 0.22 } }],
       },
       center: [106.66, 10.77],
       zoom: 10,
@@ -72,50 +91,63 @@ export default function CityMap() {
     mapInstance.current = map;
 
     map.on("load", async () => {
-      // Load ward boundaries
       const resp = await fetch("/data/hcm-boundaries.geojson");
       const geojson = await resp.json();
 
-      // Enrich features with scan data
+      // Enrich ward features with scan data + computed density
       const wardFeatures = geojson.features
         .filter(f => f.properties.type === "ward")
         .map(f => {
           const w = wardMap[f.properties.code];
+          const areaKm2 = geometryAreaKm2(f.geometry);
+          const camCount = w?.camCount || 0;
+          const roadKm   = w ? Math.round(w.roadKm * 10) / 10 : 0;
+          const ix       = w?.byCat?.intersection || 0;
           return {
             ...f,
             properties: {
               ...f.properties,
-              camCount: w?.camCount || 0,
-              roadKm: w ? Math.round(w.roadKm * 10) / 10 : 0,
-              intersection: w?.byCat?.intersection || 0,
-              cam1: w?.cam1 || 0,
-              camAlley: w?.camAlley || 0,
-              hasError: !!(w?.error),
-              hasData: !!(w && !w.error),
+              areaKm2:      Math.round(areaKm2 * 100) / 100,
+              camCount,
+              camDensity:   areaKm2 > 0 ? Math.round(camCount / areaKm2) : 0,
+              roadKm,
+              roadDensity:  areaKm2 > 0 ? Math.round((roadKm / areaKm2) * 100) / 100 : 0,
+              intersection: ix,
+              ixDensity:    areaKm2 > 0 ? Math.round(ix / areaKm2) : 0,
+              cam1:         w?.cam1 || 0,
+              camAlley:     w?.camAlley || 0,
+              byCatSchool:  w?.byCat?.school || 0,
+              byCatHosp:    w?.byCat?.hospital || 0,
+              byCatMarket:  w?.byCat?.market || 0,
+              hasError:     !!(w?.error),
+              hasData:      !!(w && !w.error),
             },
           };
         });
 
-      const maxCam = Math.max(...wardFeatures.map(f => f.properties.camCount), 1);
-      const maxRoad = Math.max(...wardFeatures.map(f => f.properties.roadKm), 1);
-      const maxIx = Math.max(...wardFeatures.map(f => f.properties.intersection), 1);
-
-      // Add expression-based color for each metric
-      function makeColorExpr(prop, maxVal) {
-        return [
-          "interpolate", ["linear"],
-          ["get", prop],
-          0, "#1a2e4a",
-          maxVal * 0.1, "#1d4ed8",
-          maxVal * 0.33, "#38BDF8",
-          maxVal * 0.6, "#FBBF24",
-          maxVal, "#ef4444",
-        ];
+      // Compute max for each metric
+      const maxes = {};
+      for (const m of METRICS) {
+        maxes[m.key] = Math.max(...wardFeatures.map(f => f.properties[m.key] || 0), 1);
       }
+      map._maxes = maxes;
+
+      const colorExpr = (prop, maxVal) => [
+        "interpolate", ["linear"],
+        ["get", prop],
+        0,            "#0f172a",
+        maxVal * 0.05, "#1e3a8a",
+        maxVal * 0.2,  "#1d4ed8",
+        maxVal * 0.4,  "#38BDF8",
+        maxVal * 0.65, "#FBBF24",
+        maxVal,        "#ef4444",
+      ];
+      map._colorExpr = colorExpr;
 
       map.addSource("wards", {
         type: "geojson",
         data: { type: "FeatureCollection", features: wardFeatures },
+        generateId: true,
       });
 
       map.addLayer({
@@ -123,8 +155,8 @@ export default function CityMap() {
         type: "fill",
         source: "wards",
         paint: {
-          "fill-color": makeColorExpr("camCount", maxCam),
-          "fill-opacity": ["case", ["get", "hasData"], 0.72, 0.15],
+          "fill-color": colorExpr("camCount", maxes.camCount),
+          "fill-opacity": ["case", ["get", "hasData"], 0.78, 0.12],
         },
       });
 
@@ -135,11 +167,11 @@ export default function CityMap() {
         paint: {
           "line-color": ["case",
             ["boolean", ["feature-state", "hover"], false], C.amber,
-            "#334155",
+            "#253855",
           ],
           "line-width": ["case",
             ["boolean", ["feature-state", "hover"], false], 2.5,
-            0.8,
+            0.7,
           ],
         },
       });
@@ -148,24 +180,20 @@ export default function CityMap() {
         id: "wards-label",
         type: "symbol",
         source: "wards",
-        minzoom: 12,
+        minzoom: 12.5,
         layout: {
-          "text-field": ["concat", ["get", "name"], "\n", ["to-string", ["get", "camCount"]], " cam"],
+          "text-field": ["get", "name"],
           "text-size": 10,
           "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
         },
         paint: {
           "text-color": C.text,
-          "text-halo-color": "#0d1829",
+          "text-halo-color": "#060d1a",
           "text-halo-width": 1.5,
         },
       });
 
-      // Store maxes for metric switching
-      map._maxCam = maxCam; map._maxRoad = maxRoad; map._maxIx = maxIx;
-      map._makeColorExpr = makeColorExpr;
-
-      // Hover
+      // Hover state
       let hoveredId = null;
       map.on("mousemove", "wards-fill", e => {
         if (hoveredId !== null) map.setFeatureState({ source: "wards", id: hoveredId }, { hover: false });
@@ -181,48 +209,88 @@ export default function CityMap() {
         setHoveredWard(null);
       });
 
-      // Click popup
+      // Click → show popup + option to open in Scanner
       map.on("click", "wards-fill", e => {
         const p = e.features[0].properties;
+        // Store the clicked ward feature in sessionStorage for Scanner to pick up
+        const feature = geojson.features.find(f => f.properties.code === p.code);
+
         if (popupRef.current) popupRef.current.remove();
-        popupRef.current = new maplibregl.Popup({ closeButton: true, className: "city-popup" })
+        popupRef.current = new maplibregl.Popup({ closeButton: true, className: "city-popup", maxWidth: "240px" })
           .setLngLat(e.lngLat)
           .setHTML(`
-            <div style="padding:0.75rem 1rem;min-width:180px;font-family:Inter,sans-serif">
-              <div style="font-weight:800;font-size:0.85rem;color:#e2e8f0;margin-bottom:0.5rem">${p.ward_type || ""} ${p.name}</div>
+            <div style="padding:0.75rem 1rem;font-family:Inter,sans-serif">
+              <div style="font-weight:800;font-size:0.85rem;color:#e2e8f0;margin-bottom:0.5rem">
+                ${p.ward_type || ""} ${p.name}
+              </div>
               ${p.hasData ? `
-                <div style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.75rem">
-                  <div style="display:flex;justify-content:space-between"><span style="color:#64748b">Camera</span><strong style="color:#FBBF24">${Number(p.camCount).toLocaleString("vi-VN")}</strong></div>
-                  <div style="display:flex;justify-content:space-between"><span style="color:#64748b">Đường</span><strong style="color:#38BDF8">${p.roadKm} km</strong></div>
-                  <div style="display:flex;justify-content:space-between"><span style="color:#64748b">Giao lộ</span><strong style="color:#34D399">${Number(p.intersection).toLocaleString("vi-VN")}</strong></div>
-                  <div style="display:flex;justify-content:space-between"><span style="color:#64748b">CAM1 đường</span><strong style="color:#94a3b8">${Number(p.cam1).toLocaleString("vi-VN")}</strong></div>
-                  <div style="display:flex;justify-content:space-between"><span style="color:#64748b">CAM hẻm</span><strong style="color:#86efac">${Number(p.camAlley).toLocaleString("vi-VN")}</strong></div>
+                <div style="display:flex;flex-direction:column;gap:0.28rem;font-size:0.73rem;margin-bottom:0.65rem">
+                  <div style="display:flex;justify-content:space-between">
+                    <span style="color:#64748b">Diện tích</span>
+                    <strong style="color:#94a3b8">${p.areaKm2} km²</strong>
+                  </div>
+                  <div style="display:flex;justify-content:space-between">
+                    <span style="color:#64748b">Camera</span>
+                    <strong style="color:#FBBF24">${Number(p.camCount).toLocaleString("vi-VN")} cam</strong>
+                  </div>
+                  <div style="display:flex;justify-content:space-between">
+                    <span style="color:#64748b">Mật độ</span>
+                    <strong style="color:#FBBF24">${Number(p.camDensity).toLocaleString("vi-VN")} cam/km²</strong>
+                  </div>
+                  <div style="display:flex;justify-content:space-between">
+                    <span style="color:#64748b">Đường</span>
+                    <strong style="color:#38BDF8">${p.roadKm} km · ${p.roadDensity} km/km²</strong>
+                  </div>
+                  <div style="display:flex;justify-content:space-between">
+                    <span style="color:#64748b">Giao lộ</span>
+                    <strong style="color:#34D399">${Number(p.intersection).toLocaleString("vi-VN")} · ${p.ixDensity}/km²</strong>
+                  </div>
+                  <div style="display:flex;justify-content:space-between">
+                    <span style="color:#64748b">Trường · BV · Chợ</span>
+                    <strong style="color:#94a3b8">${p.byCatSchool} · ${p.byCatHosp} · ${p.byCatMarket}</strong>
+                  </div>
                 </div>
-              ` : `<div style="color:#F87171;font-size:0.75rem">Chưa có dữ liệu</div>`}
+                <button id="open-in-scanner"
+                  style="width:100%;padding:0.45rem;background:linear-gradient(135deg,#38BDF8,#A78BFA);
+                    border:none;border-radius:7px;color:#fff;font-weight:800;font-size:0.75rem;cursor:pointer">
+                  🔍 Mở trong Scanner
+                </button>
+              ` : `<div style="color:#F87171;font-size:0.75rem;margin-bottom:0.5rem">Chưa có dữ liệu quét</div>`}
             </div>
           `)
           .addTo(map);
+
+        // Wire up the button after popup renders
+        setTimeout(() => {
+          const btn = document.getElementById("open-in-scanner");
+          if (btn && feature) {
+            btn.onclick = () => {
+              sessionStorage.setItem("scanner-boundary", JSON.stringify(feature));
+              navigate("/scan");
+            };
+          }
+        }, 50);
       });
 
       setLoaded(true);
     });
 
     return () => { map.remove(); mapInstance.current = null; };
-  }, [wardMap]);
+  }, [wardMap, navigate]);
 
-  // Switch metric
+  // Switch metric color
   useEffect(() => {
     const map = mapInstance.current;
-    if (!map || !loaded || !map._makeColorExpr) return;
-    const propMap = { camCount: [map._maxCam, "camCount"], roadKm: [map._maxRoad, "roadKm"], intersection: [map._maxIx, "intersection"] };
-    const [maxVal, prop] = propMap[metric];
-    map.setPaintProperty("wards-fill", "fill-color", map._makeColorExpr(prop, maxVal));
-  }, [metric, loaded]);
+    if (!map || !loaded || !map._maxes || !map._colorExpr) return;
+    const maxVal = map._maxes[metricKey] || 1;
+    map.setPaintProperty("wards-fill", "fill-color", map._colorExpr(metricKey, maxVal));
+  }, [metricKey, loaded]);
 
-  const metricLabel = { camCount: "Camera", roadKm: "Đường (km)", intersection: "Giao lộ" };
+  const currentMetric = METRICS.find(m => m.key === metricKey) || METRICS[0];
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "Inter,system-ui,sans-serif" }}>
+
       {/* Nav */}
       <nav style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -238,15 +306,16 @@ export default function CityMap() {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {/* Metric toggle */}
-          {["camCount", "roadKm", "intersection"].map(m => (
-            <button key={m} onClick={() => setMetric(m)} style={{
-              fontSize: "0.68rem", padding: "3px 9px", borderRadius: "5px", cursor: "pointer", fontWeight: 600,
-              background: metric === m ? C.amber : C.card, color: metric === m ? "#000" : C.dim,
-              border: `1px solid ${metric === m ? C.amber : C.border}`,
-            }}>{metricLabel[m]}</button>
+        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", flexWrap: "wrap" }}>
+          {METRICS.map(m => (
+            <button key={m.key} onClick={() => setMetricKey(m.key)} style={{
+              fontSize: "0.65rem", padding: "3px 8px", borderRadius: "5px", cursor: "pointer", fontWeight: 600,
+              background: metricKey === m.key ? C.amber : C.card,
+              color: metricKey === m.key ? "#000" : m.density ? C.violet : C.dim,
+              border: `1px solid ${metricKey === m.key ? C.amber : m.density ? C.violet + "55" : C.border}`,
+            }}>{m.density ? "⊞ " : ""}{m.label}</button>
           ))}
+          <div style={{ width: "1px", height: "18px", background: C.border }} />
           <button onClick={() => navigate("/plan")} style={{
             fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
             background: `${C.violet}18`, border: `1px solid ${C.violet}44`, color: C.violet,
@@ -254,40 +323,60 @@ export default function CityMap() {
         </div>
       </nav>
 
-      {/* Map container */}
+      {/* Map */}
       <div style={{ flex: 1, position: "relative" }}>
         <div ref={mapRef} style={{ width: "100%", height: "100%", minHeight: "calc(100vh - 48px)" }} />
 
-        {/* Legend */}
+        {/* Legend + hover info */}
         <div style={{
           position: "absolute", bottom: "2rem", left: "1rem", zIndex: 10,
           background: `${C.bg}ee`, border: `1px solid ${C.border}`, borderRadius: "10px",
-          padding: "0.7rem 1rem", minWidth: "160px",
+          padding: "0.7rem 1rem", minWidth: "180px",
         }}>
-          <div style={{ fontSize: "0.62rem", fontWeight: 800, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
-            {metricLabel[metric]}
+          <div style={{ fontSize: "0.6rem", fontWeight: 800, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
+            {currentMetric.label}
+            {currentMetric.density && <span style={{ color: C.violet, marginLeft: "0.3rem" }}>(mật độ / diện tích)</span>}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-            <div style={{ flex: 1, height: "8px", borderRadius: "4px", background: "linear-gradient(90deg,#1d4ed8,#38BDF8,#FBBF24,#ef4444)" }} />
+          <div style={{ display: "flex", height: "10px", borderRadius: "5px", overflow: "hidden", marginBottom: "0.25rem" }}>
+            {["#1e3a8a","#1d4ed8","#38BDF8","#FBBF24","#ef4444"].map((c, i) => (
+              <div key={i} style={{ flex: 1, background: c }} />
+            ))}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: C.muted, marginTop: "0.2rem" }}>
-            <span>Ít</span><span>Nhiều</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: C.muted }}>
+            <span>Ít</span><span>TB</span><span>Nhiều</span>
           </div>
+
+          {/* Hover tooltip */}
           {hoveredWard && hoveredWard.hasData && (
             <div style={{ marginTop: "0.6rem", paddingTop: "0.5rem", borderTop: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: "0.7rem", fontWeight: 700, color: C.text, marginBottom: "0.2rem" }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, color: C.text, marginBottom: "0.25rem" }}>
                 {hoveredWard.ward_type} {hoveredWard.name}
               </div>
-              <div style={{ fontSize: "0.68rem", color: C.amber }}>
-                {metric === "camCount" && `${Number(hoveredWard.camCount).toLocaleString("vi-VN")} camera`}
-                {metric === "roadKm" && `${hoveredWard.roadKm} km đường`}
-                {metric === "intersection" && `${Number(hoveredWard.intersection).toLocaleString("vi-VN")} giao lộ`}
+              <div style={{ fontSize: "0.7rem", color: C.amber, fontWeight: 700 }}>
+                {Number(hoveredWard[metricKey] || 0).toLocaleString("vi-VN")} {currentMetric.unit}
+              </div>
+              <div style={{ fontSize: "0.65rem", color: C.muted, marginTop: "0.15rem" }}>
+                {hoveredWard.areaKm2} km² · {Number(hoveredWard.camDensity).toLocaleString("vi-VN")} cam/km²
+              </div>
+              <div style={{ fontSize: "0.63rem", color: C.dim, marginTop: "0.1rem" }}>
+                Click để xem chi tiết + mở Scanner
               </div>
             </div>
           )}
         </div>
 
-        {/* No data warning */}
+        {/* Density note */}
+        {currentMetric.density && (
+          <div style={{
+            position: "absolute", top: "0.75rem", left: "50%", transform: "translateX(-50%)", zIndex: 10,
+            background: `${C.violet}22`, border: `1px solid ${C.violet}44`, borderRadius: "7px",
+            padding: "0.3rem 0.9rem", fontSize: "0.7rem", color: C.violet, fontWeight: 600, whiteSpace: "nowrap",
+          }}>
+            ⊞ Hiển thị theo mật độ / diện tích phường — chuẩn hơn cho so sánh
+          </div>
+        )}
+
+        {/* No data */}
         {!hasData && (
           <div style={{
             position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
@@ -307,16 +396,11 @@ export default function CityMap() {
 
       <style>{`
         .city-popup .maplibregl-popup-content {
-          background: #0d1829 !important;
-          border: 1px solid #1e3354 !important;
-          border-radius: 10px !important;
-          padding: 0 !important;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
-          color: #e2e8f0 !important;
+          background: #0d1829 !important; border: 1px solid #1e3354 !important;
+          border-radius: 10px !important; padding: 0 !important;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important; color: #e2e8f0 !important;
         }
-        .city-popup .maplibregl-popup-close-button {
-          color: #64748b; font-size: 1.1rem; padding: 4px 8px;
-        }
+        .city-popup .maplibregl-popup-close-button { color: #64748b; font-size: 1.1rem; padding: 4px 8px; }
         .city-popup .maplibregl-popup-tip { border-top-color: #1e3354 !important; }
       `}</style>
     </div>

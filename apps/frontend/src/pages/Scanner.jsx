@@ -3,6 +3,7 @@ import Header from "../components/layout/Header.jsx";
 import Sidebar from "../components/layout/Sidebar.jsx";
 import RightPanel from "../components/layout/RightPanel.jsx";
 import MapView from "../components/map/MapView.jsx";
+import useScanStore from "../store/scanStore.js";
 
 const C = {
   bg: "#060d1a", border: "#1e3354", muted: "#475569",
@@ -61,6 +62,21 @@ export default function Scanner() {
   const mobile = useMobile();
   const [leftOpen, setLeftOpen]   = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const setBoundary = useScanStore(s => s.setBoundary);
+  const runScan     = useScanStore(s => s.runScan);
+
+  // Pick up ward boundary passed from CityMap via sessionStorage
+  useEffect(() => {
+    const raw = sessionStorage.getItem("scanner-boundary");
+    if (!raw) return;
+    sessionStorage.removeItem("scanner-boundary");
+    try {
+      const feature = JSON.parse(raw);
+      setBoundary(feature);
+      // Small delay so Sidebar can re-render into boundary mode before scan starts
+      setTimeout(() => runScan(), 300);
+    } catch {}
+  }, []);
 
   const openLeft = () => {
     if (mobile) setRightOpen(false);
