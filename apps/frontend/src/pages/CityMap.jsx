@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadCityScanCache, aggregateWards } from "../services/cityBatchScan.js";
+import { aggregateWards } from "../services/cityBatchScan.js";
+import useCityStore from "../store/cityStore.js";
 
 const C = {
   bg: "#060d1a", card: "#0d1829", border: "#1a2e4a",
@@ -55,8 +56,10 @@ export default function CityMap() {
   const [metricKey, setMetricKey] = useState("camCount");
   const [hoveredWard, setHoveredWard] = useState(null);
 
-  const cache = useMemo(() => loadCityScanCache(), []);
-  const wards = cache?.wards || [];
+  const storeWards    = useCityStore(s => s.wardResults);
+  const initFromCache = useCityStore(s => s.initFromCache);
+  useEffect(() => { initFromCache(); }, []);
+  const wards = storeWards || [];
   const agg = useMemo(() => aggregateWards(wards), [wards]);
   const hasData = wards.filter(w => !w.error).length > 0;
 

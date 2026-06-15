@@ -309,6 +309,28 @@ const useScanStore = create((set, get) => ({
     }
   },
 
+  /** Populate scan results directly from ward geometry (IDB cache), skipping Overpass. */
+  loadFromCache: (data) => {
+    const stats = {};
+    for (const p of (data.points || [])) stats[p.category] = (stats[p.category] || 0) + 1;
+    set({
+      points:           data.points           || [],
+      cameras:          data.cameras          || [],
+      roads:            data.roads            || [],
+      rawIntersections: data.rawIntersections || [],
+      rawWays:          data.rawWays          || [],
+      rawSignalNodes:   data.rawSignalNodes   || [],
+      boundary:         data.boundary         ?? null,
+      bbox:             null,
+      stats,
+      loading:          false,
+      progress:         `Đã tải từ cache (${(data.cameras || []).length} camera)`,
+      error:            null,
+      selectedPoint:    null,
+      sessionFilename:  null,
+    });
+  },
+
   resetResults: () =>
     set({
       points: [], roads: [], cameras: [], bbox: null, stats: {},
