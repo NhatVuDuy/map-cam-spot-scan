@@ -62,8 +62,10 @@ export default function Scanner() {
   const mobile = useMobile();
   const [leftOpen, setLeftOpen]   = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [wardBanner, setWardBanner] = useState(null); // { name, cachedStats }
   const setBoundary = useScanStore(s => s.setBoundary);
   const runScan     = useScanStore(s => s.runScan);
+  const loading     = useScanStore(s => s.loading);
 
   // Pick up ward boundary passed from CityMap via sessionStorage
   useEffect(() => {
@@ -72,11 +74,27 @@ export default function Scanner() {
     sessionStorage.removeItem("scanner-boundary");
     try {
       const feature = JSON.parse(raw);
+      // Load cached stats for the banner (from batch scan)
+      let cachedStats = null;
+      try {
+        const cache = JSON.parse(localStorage.getItem("hcm-city-scan-v1") || "null");
+        const wardData = cache?.wards?.find(w => w.code === feature.properties.code);
+        if (wardData && !wardData.error) cachedStats = wardData;
+      } catch {}
+
+      const wardName = `${feature.properties.ward_type || ""} ${feature.properties.name}`.trim();
+      setWardBanner({ name: wardName, cachedStats });
       setBoundary(feature);
-      // Small delay so Sidebar can re-render into boundary mode before scan starts
       setTimeout(() => runScan(), 300);
     } catch {}
   }, []);
+
+  // Clear banner once scan finishes
+  useEffect(() => {
+    if (!loading && wardBanner) {
+      setTimeout(() => setWardBanner(null), 2000);
+    }
+  }, [loading]);
 
   const openLeft = () => {
     if (mobile) setRightOpen(false);
@@ -102,6 +120,33 @@ export default function Scanner() {
 
         {/* ── Map center ──────────────────────────────────────────────────── */}
         <div style={{ flex: 1, position: "relative", minWidth: 0, overflow: "hidden" }}>
+          {/* Ward drill-down banner */}
+          {wardBanner && (
+            <div style={{
+              position: "absolute", top: "0.6rem", left: "50%", transform: "translateX(-50%)",
+              zIndex: 30, background: "#0d1829ee", border: "1px solid #38BDF844",
+              borderRadius: "8px", padding: "0.45rem 1rem",
+              display: "flex", alignItems: "center", gap: "0.6rem",
+              fontSize: "0.75rem", color: "#e2e8f0", whiteSpace: "nowrap",
+              backdropFilter: "blur(8px)", boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+            }}>
+              {loading
+                ? <span style={{ color: "#38BDF8" }}>⟳ Đang tải chi tiết vị trí —</span>
+                : <span style={{ color: "#34D399" }}>✓ Đã tải —</span>}
+              <strong style={{ color: "#FBBF24" }}>{wardBanner.name}</strong>
+              {wardBanner.cachedStats && (
+                <span style={{ color: "#64748b" }}>
+                  · {wardBanner.cachedStats.camCount} cam · {wardBanner.cachedStats.roadKm.toFixed(1)} km đường
+                  {" "}(từ dữ liệu quét toàn TP.HCM)
+                </span>
+              )}
+              {!loading && (
+                <button onClick={() => setWardBanner(null)} style={{
+                  background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "0.9rem", padding: "0 2px",
+                }}>×</button>
+              )}
+            </div>
+          )}
           <MapView />
           {!leftOpen && (
             <FloatToggle side="left" label="Cài đặt" onClick={openLeft} />
