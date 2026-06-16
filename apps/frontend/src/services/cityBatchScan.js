@@ -102,9 +102,10 @@ async function scanWard(ward) {
 }
 
 /* ── load ward features from geojson ───────────────────────────── */
-export async function loadWardFeatures() {
-  const resp = await fetch("/data/hcm-boundaries.geojson");
-  const geojson = await resp.json();
+export async function loadWardFeatures({ geojsonPath, geojsonData } = {}) {
+  const geojson = geojsonData
+    ? geojsonData
+    : await fetch(geojsonPath || "/data/hcm-boundaries.geojson").then(r => r.json());
   return geojson.features.filter(f => f.properties.type === "ward");
 }
 
@@ -118,7 +119,7 @@ export async function loadWardFeatures() {
  * @param {AbortSignal} opts.signal
  */
 export async function batchScanCity({ onlyCodes, existingResults = [], onProgress, onWardDone, signal } = {}) {
-  const wards = await loadWardFeatures();
+  const wards = await loadWardFeatures({ geojsonPath: "/data/hcm-boundaries.geojson" });
 
   // Build a mutable result map: code → result
   const resultMap = {};
@@ -172,6 +173,103 @@ export async function batchScanCity({ onlyCodes, existingResults = [], onProgres
   return wards.map(w => resultMap[w.properties.code]).filter(Boolean);
 }
 
+/* ── generic batch scan (city-agnostic, uses IDB geometry keys) ─── */
+/**
+ * Like batchScanCity but works with any city GeoJSON and stores
+ * geometry under scanId-scoped IDB keys.
+ *
+ * @param {Object} opts
+ * @param {string}   opts.scanId         - unique scan ID (used as geometry key prefix)
+ * @param {string}   opts.cityId
+ * @param {string}   [opts.geojsonPath]  - fetch URL for GeoJSON
+ * @param {Object}   [opts.geojsonData]  - pre-loaded GeoJSON object
+ * @param {string[]} [opts.onlyCodes]
+ * @param {Object[]} [opts.existingResults]
+ * @param {Function} opts.onProgress
+ * @param {Function} opts.onWardDone
+ * @param {Function} opts.onWriteGeometry  - (scanId, wardCode, data) => Promise
+ * @param {AbortSignal} opts.signal
+ */
+export async function batchScanCityGeneric({
+  scanId, cityId, geojsonPath, geojsonData,
+  onlyCodes, existingResults = [],
+  onProgress, onWardDone, onWriteGeometry,
+  signal,
+} = {}) {
+  const wards = await loadWardFeatures({ geojsonPath, geojsonData });
+  const resultMap = {};
+  for (const r of existingResults) resultMap[r.code] = r;
+
+  const toScan = onlyCodes
+    ? wards.filter(w => onlyCodes.includes(w.properties.code))
+    : wards.filter(w => !resultMap[w.properties.code] || resultMap[w.properties.code].error);
+
+  const total = toScan.length;
+
+  for (let i = 0; i < total; i++) {
+    if (signal?.aborted) break;
+
+    const ward = toScan[i];
+    const { name, code } = ward.properties;
+    const overallIdx = wards.findIndex(w => w.properties.code === code);
+
+    onProgress?.({
+      current: i + 1, total,
+      wardName: name,
+      pct: Math.round((i / total) * 100),
+      overallDone: Object.keys(resultMap).filter(k => !resultMap[k].error).length,
+      overallTotal: wards.length,
+    });
+
+    try {
+      const center = wardCenter(ward.geometry);
+      const result = await browserScan(
+        { area: center, categories: CATEGORIES, boundary: ward, options: { maxResults: 800 } },
+        () => {}
+      );
+
+      // Write geometry under scanId-scoped key
+      if (onWriteGeometry) {
+        onWriteGeometry(scanId, code, {
+          points:           result.points           || [],
+          cameras:          result.cameras          || [],
+          roads:            result.roads            || [],
+          rawIntersections: result.rawIntersections || [],
+          rawWays:          result.rawWays          || [],
+          rawSignalNodes:   result.rawSignalNodes   || [],
+        }).catch(() => {});
+      }
+
+      resultMap[code] = {
+        name, code,
+        camCount:   result.cameras.length,
+        byCat:      result.meta.byCategory || {},
+        roadKm:     calcRoadKm(result.roads),
+        cam1:       result.cameras.filter(c => c.type === "cam1").length,
+        cam2:       result.cameras.filter(c => ["cam2", "cam22"].includes(c.type)).length,
+        cam21:      result.cameras.filter(c => ["cam21", "cam23"].includes(c.type)).length,
+        camAlley:   result.cameras.filter(c => c.type === "cam_alley").length,
+        durationMs: result.meta.durationMs,
+        error: null,
+      };
+    } catch (err) {
+      resultMap[code] = {
+        name, code, error: err.message,
+        camCount: 0, byCat: {}, roadKm: 0, cam1: 0, cam2: 0, cam21: 0, camAlley: 0,
+      };
+    }
+
+    const allOrdered = wards.map(w => resultMap[w.properties.code]).filter(Boolean);
+    await onWardDone?.(resultMap[code], overallIdx, allOrdered);
+
+    if (i < total - 1 && !signal?.aborted) {
+      await new Promise(r => setTimeout(r, DELAY_MS));
+    }
+  }
+
+  return wards.map(w => resultMap[w.properties.code]).filter(Boolean);
+}
+
 /* ── export utilities ───────────────────────────────────────────── */
 export function exportJSON(wards) {
   const cache = loadCityScanCache();
@@ -193,6 +291,23 @@ export function exportJSON(wards) {
   a.download = `hcm-camera-scan-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function exportScanFileJSON(scanFile) {
+  const payload = {
+    meta: { exportedAt: new Date().toISOString(), scanId: scanFile.id, cityId: scanFile.cityId, name: scanFile.name, createdAt: scanFile.createdAt, totalWards: scanFile.wardCounts?.length || 0, completed: (scanFile.wardCounts || []).filter(w => !w.error).length },
+    aggregate: aggregateWards(scanFile.wardCounts || []),
+    wards: scanFile.wardCounts || [],
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url;
+  a.download = `${scanFile.cityId}-scan-${scanFile.id}-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+export function exportScanFileCSV(scanFile) {
+  exportCSV(scanFile.wardCounts || []);
 }
 
 export function exportCSV(wards) {
