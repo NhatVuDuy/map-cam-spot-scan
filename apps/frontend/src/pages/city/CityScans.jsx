@@ -23,12 +23,28 @@ const STATUS_BADGE = {
   idle:      { label: "Mới", color: C.muted },
 };
 
+/* ── Confirm modal ───────────────────────────────────────────────── */
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1.5rem", maxWidth: "360px", width: "90%", margin: "1rem" }}>
+        <div style={{ fontSize: "0.88rem", color: C.text, marginBottom: "1.25rem", lineHeight: 1.5 }}>{message}</div>
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: "7px", padding: "0.45rem 1rem", color: C.muted, cursor: "pointer", fontSize: "0.82rem" }}>Hủy</button>
+          <button onClick={onConfirm} style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: "7px", padding: "0.45rem 1rem", color: C.red, fontWeight: 700, cursor: "pointer", fontSize: "0.82rem" }}>Xóa</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── File tree ───────────────────────────────────────────────────── */
 function FileTree({ scanFiles, folders, activeScanId, onSelect, onRename, onMove, onDelete, onCreateFolder, onRenameFolder, onDeleteFolder }) {
-  const [editingFile, setEditingFile]   = useState(null);
+  const [editingFile, setEditingFile]     = useState(null);
   const [editingFolder, setEditingFolder] = useState(null);
   const [newFolderMode, setNewFolderMode] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [confirm, setConfirm]             = useState(null); // { type:'file'|'folder', id, name }
 
   function grouped() {
     const byFolder = {};
@@ -41,6 +57,18 @@ function FileTree({ scanFiles, folders, activeScanId, onSelect, onRename, onMove
   }
 
   const { byFolder, ungrouped } = useMemo(grouped, [scanFiles]);
+
+  function handleDeleteFile(id, name) {
+    setConfirm({ type: "file", id, name });
+  }
+  function handleDeleteFolder(id, name) {
+    setConfirm({ type: "folder", id, name });
+  }
+  function doConfirm() {
+    if (confirm.type === "file") onDelete(confirm.id);
+    else onDeleteFolder(confirm.id);
+    setConfirm(null);
+  }
 
   function FileRow({ file, indent = 0 }) {
     const badge = STATUS_BADGE[file.status] || STATUS_BADGE.idle;
@@ -85,10 +113,9 @@ function FileTree({ scanFiles, folders, activeScanId, onSelect, onRename, onMove
         <span style={{ fontSize: "0.58rem", padding: "2px 6px", borderRadius: "100px", border: `1px solid ${badge.color}44`, color: badge.color, background: `${badge.color}14`, whiteSpace: "nowrap" }}>
           {badge.label}
         </span>
-        {/* Context menu */}
         <div onClick={e => e.stopPropagation()} style={{ display: "flex", gap: "2px" }}>
-          <button onClick={() => setEditingFile(file.id)} title="Đổi tên" style={iconBtn}> ✏️</button>
-          <button onClick={() => onDelete(file.id)} title="Xóa" style={iconBtn}>🗑</button>
+          <button onClick={() => setEditingFile(file.id)} title="Đổi tên" style={iconBtn}>✏️</button>
+          <button onClick={() => handleDeleteFile(file.id, file.name)} title="Xóa" style={iconBtn}>🗑</button>
         </div>
       </div>
     );
@@ -101,7 +128,6 @@ function FileTree({ scanFiles, folders, activeScanId, onSelect, onRename, onMove
         <button onClick={() => setNewFolderMode(true)} title="Thêm thư mục" style={{ ...iconBtn, fontSize: "0.65rem" }}>📁+</button>
       </div>
 
-      {/* New folder input */}
       {newFolderMode && (
         <RenameInput
           defaultValue="Thư mục mới"
@@ -112,10 +138,8 @@ function FileTree({ scanFiles, folders, activeScanId, onSelect, onRename, onMove
         />
       )}
 
-      {/* Ungrouped files */}
       {ungrouped.map(f => <FileRow key={f.id} file={f} />)}
 
-      {/* Folders */}
       {folders.map(folder => (
         <div key={folder.id} style={{ marginBottom: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.35rem 0.75rem" }}>
@@ -131,7 +155,7 @@ function FileTree({ scanFiles, folders, activeScanId, onSelect, onRename, onMove
               <>
                 <span style={{ fontSize: "0.74rem", fontWeight: 700, color: C.dim, flex: 1 }}>{folder.name}</span>
                 <button onClick={() => setEditingFolder(folder.id)} style={iconBtn}>✏️</button>
-                <button onClick={() => onDeleteFolder(folder.id)} style={iconBtn}>🗑</button>
+                <button onClick={() => handleDeleteFolder(folder.id, folder.name)} style={iconBtn}>🗑</button>
               </>
             )}
           </div>
@@ -145,6 +169,16 @@ function FileTree({ scanFiles, folders, activeScanId, onSelect, onRename, onMove
         <div style={{ textAlign: "center", padding: "2rem 1rem", fontSize: "0.78rem", color: C.muted }}>
           Chưa có file quét nào.<br />Bấm "Quét mới" để bắt đầu.
         </div>
+      )}
+
+      {confirm && (
+        <ConfirmModal
+          message={confirm.type === "file"
+            ? `Xóa file "${confirm.name}"? Toàn bộ dữ liệu phường đã quét sẽ bị mất.`
+            : `Xóa thư mục "${confirm.name}"? Các file bên trong sẽ được chuyển ra ngoài.`}
+          onConfirm={doConfirm}
+          onCancel={() => setConfirm(null)}
+        />
       )}
     </div>
   );
@@ -177,7 +211,7 @@ function RenameInput({ defaultValue = "", placeholder, onConfirm, onCancel, inde
 const iconBtn = { background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.72rem", padding: "2px 3px", borderRadius: "3px" };
 
 /* ── Scan file detail panel ──────────────────────────────────────── */
-function ScanDetail({ file, onViewMap, cityId }) {
+function ScanDetail({ file, cityId }) {
   const navigate = useNavigate();
   const agg = useMemo(() => file?.wardCounts?.length ? aggregateWards(file.wardCounts) : null, [file]);
   if (!file) return (
@@ -187,7 +221,6 @@ function ScanDetail({ file, onViewMap, cityId }) {
   );
 
   const badge = STATUS_BADGE[file.status] || STATUS_BADGE.idle;
-  const failedCount = (file.wardCounts || []).filter(w => w.error).length;
 
   return (
     <div style={{ flex: 1, padding: "1.5rem", overflowY: "auto" }}>
@@ -202,13 +235,12 @@ function ScanDetail({ file, onViewMap, cityId }) {
         <span style={{ fontSize: "0.65rem", padding: "3px 9px", borderRadius: "100px", border: `1px solid ${badge.color}44`, color: badge.color, background: `${badge.color}14` }}>{badge.label}</span>
       </div>
 
-      {/* KPI row */}
       {agg && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "0.6rem", marginBottom: "1.25rem" }}>
           {[
-            { icon: "📹", label: "Camera",      val: fmt(agg.camCount),                  color: C.cyan },
-            { icon: "🔀", label: "Giao lộ",      val: fmt(agg.byCat.intersection || 0),  color: C.amber },
-            { icon: "🛣️", label: "Đường (km)",   val: fmt(agg.roadKm),                    color: C.violet },
+            { icon: "📹", label: "Camera",         val: fmt(agg.camCount),                   color: C.cyan },
+            { icon: "🔀", label: "Giao lộ",         val: fmt(agg.byCat.intersection || 0),   color: C.amber },
+            { icon: "🛣️", label: "Đường (km)",      val: fmt(agg.roadKm),                     color: C.violet },
             { icon: "✅", label: "Phường hoàn tất", val: `${agg.completed}/${file.wardCounts?.length || 0}`, color: C.green },
           ].map(({ icon, label, val, color }) => (
             <div key={label} style={{ background: C.card, border: `1px solid ${color}33`, borderRadius: "9px", padding: "0.75rem", display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -222,19 +254,49 @@ function ScanDetail({ file, onViewMap, cityId }) {
         </div>
       )}
 
-      {failedCount > 0 && (
-        <div style={{ marginBottom: "1rem", padding: "0.55rem 0.9rem", background: `${C.amber}0d`, border: `1px solid ${C.amber}33`, borderRadius: "7px", fontSize: "0.74rem", color: C.amber }}>
-          ⚠️ {failedCount} phường lỗi — có thể quét lại từ danh sách
-        </div>
-      )}
+      <button onClick={() => navigate(`/city/${cityId}/scan/${file.id}`)} style={{
+        background: `linear-gradient(135deg,${C.cyan},${C.violet})`, border: "none",
+        borderRadius: "8px", padding: "0.65rem", width: "100%",
+        color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
+      }}>📊 Xem thống kê & bản đồ</button>
+    </div>
+  );
+}
 
-      {/* Action buttons */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        <button onClick={() => navigate(`/city/${cityId}/scan/${file.id}`)} style={{
-          background: `linear-gradient(135deg,${C.cyan},${C.violet})`, border: "none",
-          borderRadius: "8px", padding: "0.6rem", color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
-        }}>📊 Xem thống kê & bản đồ</button>
-      </div>
+/* ── Sidebar scan controls ───────────────────────────────────────── */
+function SidebarControls({ isRunning, selectedFile, onStartFresh, onResume, onRetry, onStop }) {
+  const hasResumable = selectedFile && (selectedFile.status === "resumable" || selectedFile.status === "error");
+  const hasFailed    = selectedFile?.wardCounts?.filter(w => w.error).length > 0;
+
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, padding: "0.75rem" }}>
+      {!isRunning ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          <button onClick={onStartFresh} style={{
+            background: `linear-gradient(135deg,${C.green},${C.cyan})`, border: "none",
+            borderRadius: "7px", padding: "0.55rem", color: "#fff", fontWeight: 700,
+            fontSize: "0.8rem", cursor: "pointer", width: "100%",
+          }}>+ Quét mới</button>
+          {hasResumable && (
+            <button onClick={() => onResume(selectedFile.id)} style={{
+              background: `${C.amber}18`, border: `1px solid ${C.amber}44`, borderRadius: "7px",
+              padding: "0.5rem", color: C.amber, fontWeight: 700, fontSize: "0.78rem", cursor: "pointer",
+            }}>▶ Tiếp tục quét</button>
+          )}
+          {hasFailed && (
+            <button onClick={() => onRetry(selectedFile.id)} style={{
+              background: `${C.orange}18`, border: `1px solid ${C.orange}44`, borderRadius: "7px",
+              padding: "0.5rem", color: C.orange, fontWeight: 700, fontSize: "0.78rem", cursor: "pointer",
+            }}>🔁 Retry lỗi</button>
+          )}
+        </div>
+      ) : (
+        <button onClick={onStop} style={{
+          background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: "7px",
+          padding: "0.55rem", color: C.red, fontWeight: 700, fontSize: "0.8rem",
+          cursor: "pointer", width: "100%",
+        }}>⏹ Dừng quét</button>
+      )}
     </div>
   );
 }
@@ -243,7 +305,7 @@ function ScanDetail({ file, onViewMap, cityId }) {
 export default function CityScans() {
   const { cityId } = useParams();
   const navigate   = useNavigate();
-  const [city, setCity]           = useState(null);
+  const [city, setCity]             = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
   const {
@@ -264,7 +326,6 @@ export default function CityScans() {
     init();
   }, [cityId]);
 
-  // Keep selectedFile in sync when scanFiles update
   useEffect(() => {
     if (selectedFile) {
       const updated = scanFiles.find(f => f.id === selectedFile.id);
@@ -280,29 +341,17 @@ export default function CityScans() {
 
   const isRunning = status === "running" && activeScanId;
 
-  const selectedResumable = selectedFile && (selectedFile.status === "resumable" || selectedFile.status === "error");
-  const selectedFailed    = selectedFile?.wardCounts?.filter(w => w.error).length > 0;
-
   return (
     <AppLayout
       featureName={city.name}
       backButton={<BackBtn onClick={() => navigate("/city")}>← Thành phố</BackBtn>}
       navButtons={
-        <>
-          {!isRunning && (
-            <NavBtn color={C.green} onClick={startFresh}>+ Quét mới</NavBtn>
-          )}
-          {isRunning && (
-            <NavBtn color={C.red} onClick={stopScan}>⏹ Dừng</NavBtn>
-          )}
-          <NavBtn color={C.cyan} onClick={() => navigate("/scan")}>🔍 Quét vùng</NavBtn>
-        </>
+        <NavBtn color={C.cyan} onClick={() => navigate("/scan")}>🔍 Quét vùng</NavBtn>
       }
-      style={{ height: "100vh", overflow: "hidden" }}
     >
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* ── Left: file tree ──────────────────────────────────────── */}
+        {/* ── Left sidebar ─────────────────────────────────────────── */}
         <div style={{
           width: "260px", flexShrink: 0, borderRight: `1px solid ${C.border}`,
           display: "flex", flexDirection: "column", overflow: "hidden", background: "#080f1e",
@@ -319,9 +368,17 @@ export default function CityScans() {
             onRenameFolder={renameFolder}
             onDeleteFolder={deleteFolder}
           />
+          <SidebarControls
+            isRunning={isRunning}
+            selectedFile={selectedFile}
+            onStartFresh={startFresh}
+            onResume={resume}
+            onRetry={retryFailed}
+            onStop={stopScan}
+          />
         </div>
 
-        {/* ── Right: detail / progress ─────────────────────────────── */}
+        {/* ── Right panel ──────────────────────────────────────────── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {isRunning ? (
             <ScanProgress
@@ -331,22 +388,7 @@ export default function CityScans() {
               onStop={stopScan}
             />
           ) : (
-            <>
-              {/* Resume/retry bar for selected file */}
-              {selectedResumable && (
-                <div style={{
-                  padding: "0.55rem 1rem", background: `${C.amber}0d`, borderBottom: `1px solid ${C.amber}33`,
-                  display: "flex", alignItems: "center", gap: "0.6rem", fontSize: "0.78rem",
-                }}>
-                  <span style={{ color: C.amber, fontWeight: 600 }}>⚠️ File này chưa hoàn tất</span>
-                  <button onClick={() => resume(selectedFile.id)} style={{ background: `${C.green}18`, border: `1px solid ${C.green}44`, borderRadius: "5px", padding: "3px 10px", color: C.green, fontWeight: 700, cursor: "pointer", fontSize: "0.74rem" }}>▶ Tiếp tục</button>
-                  {selectedFailed && (
-                    <button onClick={() => retryFailed(selectedFile.id)} style={{ background: `${C.amber}18`, border: `1px solid ${C.amber}44`, borderRadius: "5px", padding: "3px 10px", color: C.amber, fontWeight: 700, cursor: "pointer", fontSize: "0.74rem" }}>🔁 Retry lỗi</button>
-                  )}
-                </div>
-              )}
-              <ScanDetail file={selectedFile} cityId={cityId} />
-            </>
+            <ScanDetail file={selectedFile} cityId={cityId} />
           )}
         </div>
       </div>

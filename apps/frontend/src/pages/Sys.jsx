@@ -548,6 +548,28 @@ export default function Sys() {
           </div>
         </div>
 
+        {/* ── GeoJSON DATA SOURCES ────────────────────────────────────────── */}
+        <SectionTitle tag="City Scan" title="Lấy GeoJSON ranh giới thành phố" sub="Dùng để import thành phố mới vào tính năng City Scan." />
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "10px", padding: "1.5rem", marginBottom: "3.5rem" }}>
+          <div style={{ marginBottom: "1rem" }}>
+            <a href="https://gis.vn/don-vi-hanh-chinh-viet-nam" target="_blank" rel="noopener noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", background: `${C.cyan}14`, border: `1px solid ${C.cyan}44`, borderRadius: "8px", padding: "0.6rem 1rem", color: C.cyan, fontWeight: 700, fontSize: "0.85rem", textDecoration: "none" }}>
+              🌏 gis.vn — Đơn vị hành chính Việt Nam
+            </a>
+          </div>
+          <div style={{ fontSize: "0.78rem", color: C.dim, lineHeight: 1.8 }}>
+            <strong style={{ color: C.text }}>Cách tải:</strong>
+            <ol style={{ margin: "0.5rem 0 0 1.25rem", paddingLeft: 0 }}>
+              <li>Vào link trên → chọn tỉnh/thành phố cần lấy</li>
+              <li>Bấm <strong style={{ color: C.cyan }}>Tải về GeoJSON</strong> (file chứa ranh giới từng phường/xã)</li>
+              <li>Vào <strong style={{ color: C.text }}>City Scan → + Thêm thành phố</strong> → upload file vừa tải</li>
+            </ol>
+            <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.9rem", background: C.bg2, borderRadius: "6px", border: `1px solid ${C.border}` }}>
+              File từ gis.vn dùng thuộc tính <code style={{ color: C.violet }}>ten_xa</code> / <code style={{ color: C.violet }}>ma_xa</code> / <code style={{ color: C.violet }}>loai</code> — ứng dụng nhận dạng tự động, không cần chỉnh sửa file.
+            </div>
+          </div>
+        </div>
+
         {/* ── DEPLOY ─────────────────────────────────────────────────────── */}
         <SectionTitle tag="CI/CD" title="Build & Deploy pipeline" sub=".github/workflows/deploy.yml — trigger: push to main." />
         <div style={{

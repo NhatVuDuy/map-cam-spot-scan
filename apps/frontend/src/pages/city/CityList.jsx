@@ -31,9 +31,20 @@ function AddCityModal({ onClose, onAdd }) {
     reader.onload = (ev) => {
       try {
         const json = JSON.parse(ev.target.result);
-        const wards = json.features?.filter(f => f.properties?.type === "ward") || [];
-        if (wards.length === 0) { setParseErr("Không tìm thấy feature có type='ward'."); return; }
-        setParsed({ geojsonData: json, wardCount: wards.length });
+        const features = json.features || [];
+        // Accept both gis.vn format (ten_xa/ma_xa) and type='ward'
+        const wards = features.filter(f => {
+          const p = f.properties || {};
+          return p.type === "ward" || p.ten_xa || p.ma_xa || p.Ten_xa || p.MaTT;
+        });
+        if (wards.length === 0) { setParseErr("Không tìm thấy dữ liệu phường/xã. Hãy tải file từ gis.vn hoặc file có type='ward'."); return; }
+        // Normalize gis.vn features to have type='ward'
+        const normalized = { ...json, features: features.map(f => {
+          const p = f.properties || {};
+          if (!p.type && (p.ten_xa || p.ma_xa)) return { ...f, properties: { ...p, type: "ward", name: p.ten_xa, wardCode: p.ma_xa } };
+          return f;
+        }) };
+        setParsed({ geojsonData: normalized, wardCount: wards.length });
         if (!name) setName(f.name.replace(/\.[^.]+$/, "").replace(/-/g, " "));
       } catch {
         setParseErr("File JSON không hợp lệ.");
