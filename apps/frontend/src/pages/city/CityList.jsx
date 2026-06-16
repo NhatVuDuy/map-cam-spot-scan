@@ -41,7 +41,7 @@ function AddCityModal({ onClose, onAdd }) {
         // Normalize gis.vn features to have type='ward'
         const normalized = { ...json, features: features.map(f => {
           const p = f.properties || {};
-          if (!p.type && (p.ten_xa || p.ma_xa)) return { ...f, properties: { ...p, type: "ward", name: p.ten_xa, wardCode: p.ma_xa } };
+        if (!p.type && (p.ten_xa || p.ma_xa)) return { ...f, properties: { ...p, type: "ward", name: p.ten_xa, code: p.ma_xa, wardCode: p.ma_xa } };
           return f;
         }) };
         setParsed({ geojsonData: normalized, wardCount: wards.length });
