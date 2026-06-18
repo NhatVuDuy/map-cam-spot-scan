@@ -5,7 +5,7 @@ import RightPanel from "../components/layout/RightPanel.jsx";
 import useScanStore from "../store/scanStore.js";
 import useCityStore from "../store/cityStore.js";
 import useScanFileStore from "../store/scanFileStore.js";
-import { readWardGeometry } from "../utils/wardGeometryDB.js";
+import { readWardGeometry } from "../utils/cityDB.js";
 
 const C = {
   bg: "#060d1a", border: "#1e3354", muted: "#475569",
@@ -46,8 +46,9 @@ export default function WardDetail() {
 
       if (wardStats) setCachedStats(wardStats);
 
-      // Read geometry from IndexedDB
-      const geo = await readWardGeometry(code).catch(() => null);
+      // Read geometry from IndexedDB (scanId-scoped)
+      const scanId = sessionStorage.getItem("city-report-scan");
+      const geo = await readWardGeometry(scanId, code).catch(() => null);
       if (!geo || !geo.cameras?.length) {
         setStatus("nogeom");
         return;
