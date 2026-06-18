@@ -56,6 +56,11 @@ function classifyShape(armRoadClasses, armCount) {
   if (allMajor && armCount === 3) return "tri";
   // Major road meeting a smaller road (any class < MAJOR_CLASS) → alley entrance
   if (majorCount >= 1 && minorCount >= 1) return "alley";
+  // All minor roads: distinguish true alley-to-alley (class 0) from residential crossings
+  if (majorCount === 0) {
+    const allAlleyClass = armRoadClasses.every(c => c === ALLEY_CLASS);
+    return allAlleyClass ? "alley_minor" : "minor";
+  }
   return "minor";
 }
 
@@ -136,6 +141,7 @@ export function detectIntersections(ways, center, radiusM) {
       quad: "Ngã tư",
       tri:  "Ngã ba",
       alley: "Đầu hẻm",
+      alley_minor: "Giao cắt hẻm",
       minor: "Giao cắt",
     };
 

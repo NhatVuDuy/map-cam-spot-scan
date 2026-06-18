@@ -9,12 +9,16 @@ const C = {
 
 function fmt(n) { return Math.round(n).toLocaleString("vi-VN"); }
 
-export default function ScanProgress({ progress, scanMode, wardResults, onStop }) {
+export default function ScanProgress({ progress, scanMode, wardResults, onStop, runSince }) {
   const agg = wardResults?.length ? aggregateWards(wardResults) : null;
 
   const modeLabel = scanMode === "retry" ? "Đang thử lại phường lỗi"
     : scanMode === "resume" ? "Tiếp tục quét"
     : "Đang quét";
+
+  const visibleWards = wardResults
+    ? [...wardResults].slice(runSince || 0).reverse().slice(0, 15)
+    : [];
 
   return (
     <div style={{ padding: "2rem 1.5rem" }}>
@@ -42,13 +46,12 @@ export default function ScanProgress({ progress, scanMode, wardResults, onStop }
           </div>
         </div>
 
-        {/* Live stats */}
+        {/* Live stats — 2 tiles: Camera + Giao lộ */}
         {agg && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.7rem", marginBottom: "1.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "0.7rem", marginBottom: "1.5rem" }}>
             {[
               { label: "Camera", val: fmt(agg.camCount), color: C.cyan },
               { label: "Giao lộ", val: fmt(agg.byCat.intersection || 0), color: C.amber },
-              { label: "Đường (km)", val: agg.roadKm.toFixed(1), color: C.violet },
             ].map(({ label, val, color }) => (
               <div key={label} style={{ background: C.card, border: `1px solid ${color}33`, borderRadius: "8px", padding: "0.7rem", textAlign: "center" }}>
                 <div style={{ fontSize: "1.05rem", fontWeight: 900, color }}>{val}</div>
@@ -58,15 +61,15 @@ export default function ScanProgress({ progress, scanMode, wardResults, onStop }
           </div>
         )}
 
-        {/* Recent wards log */}
-        {wardResults?.length > 0 && (
+        {/* Recent wards log — only show wards from current run */}
+        {visibleWards.length > 0 && (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "10px", padding: "0.75rem 1rem", marginBottom: "1.5rem", maxHeight: "200px", overflowY: "auto" }}>
             <div style={{ fontSize: "0.6rem", fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.4rem" }}>Vừa quét</div>
-            {[...wardResults].reverse().slice(0, 15).map((w, i) => (
+            {visibleWards.map((w, i) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", padding: "0.18rem 0", borderBottom: `1px solid ${C.border}22` }}>
                 <span style={{ color: w.error ? C.red : C.dim }}>{w.error ? "❌" : "✓"} {w.name}</span>
                 <span style={{ color: w.error ? C.red : C.text, fontWeight: 600 }}>
-                  {w.error ? w.error.slice(0, 36) : `${w.camCount} cam · ${w.roadKm?.toFixed(1)} km`}
+                  {w.error ? w.error.slice(0, 36) : `${w.camCount} cam`}
                 </span>
               </div>
             ))}
