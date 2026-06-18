@@ -179,8 +179,6 @@ function Sidebar({ active, onSelect }) {
       background: C.sidebar,
       borderRight: `1px solid ${C.border}`,
       overflowY: "auto",
-      position: "sticky", top: "52px",
-      height: "calc(100vh - 52px)",
     }}>
       <div style={{ padding: "1.25rem 0.75rem 2rem" }}>
         {NAV.map(group => (
@@ -600,39 +598,39 @@ export default function Guide() {
   }, []);
 
   return (
-    <div style={{ background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", height: "100dvh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* nav */}
       <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        flexShrink: 0, zIndex: 100,
+        display: "grid", gridTemplateColumns: "1fr auto 1fr",
+        alignItems: "center",
         padding: "0 1.5rem", height: "52px",
         background: `${C.bg2}f0`, borderBottom: `1px solid ${C.border}`,
-        backdropFilter: "blur(12px)", flexShrink: 0,
+        backdropFilter: "blur(12px)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <button onClick={() => navigate("/")} style={{ background: "none", border: "none", cursor: "pointer", color: C.dim, fontSize: "0.85rem", padding: 0 }}>← Home</button>
-          <div style={{ width: "1px", height: "16px", background: C.border }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span>📘</span>
-            <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>Hướng dẫn sử dụng</span>
+        {/* LEFT — logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+          <span onClick={() => navigate("/")} style={{ fontSize: "1.25rem", cursor: "pointer", flexShrink: 0 }}>📹</span>
+          <div style={{ lineHeight: 1.2, cursor: "pointer", minWidth: 0 }} onClick={() => navigate("/")}>
+            <div style={{ fontSize: "0.88rem", fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>CamSpot</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button onClick={() => navigate("/city")} style={{
-            background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`,
+        {/* CENTER — feature */}
+        <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.dim, whiteSpace: "nowrap", textAlign: "center" }}>
+          📘 Hướng dẫn sử dụng
+        </div>
+        {/* RIGHT — back */}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={() => navigate("/")} style={{
+            background: "none", border: `1px solid ${C.border}`,
             borderRadius: "7px", padding: "0.35rem 0.9rem",
-            color: C.cyan, fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
-          }}>City Scan</button>
-          <button onClick={() => navigate("/scan")} style={{
-            background: `${C.amber}18`, border: `1px solid ${C.amber}44`,
-            borderRadius: "7px", padding: "0.35rem 0.9rem",
-            color: C.amber, fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
-          }}>Quét vùng</button>
+            color: C.muted, fontSize: "0.8rem", cursor: "pointer",
+          }}>← Home</button>
         </div>
       </nav>
 
-      {/* body */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      {/* body — sidebar fixed, content scrolls */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
         <Sidebar active={active} onSelect={handleSelect} />
         <div ref={contentRef} style={{ flex: 1, overflowY: "auto" }}>
           <Content navigate={navigate} />

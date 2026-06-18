@@ -12,13 +12,17 @@ import { SESSION_VERSION } from "./sessionFile.js";
 
 const DB_NAME   = "cam-scan-db";
 const STORE     = "sessions";
-const DB_VER    = 1;
+// Must match cityDB.js DB_VER so both modules open the same version.
+const DB_VER    = 3;
 
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onupgradeneeded = (e) => {
-      e.target.result.createObjectStore(STORE, { keyPath: "filename" });
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: "filename" });
+      }
     };
     req.onsuccess = (e) => resolve(e.target.result);
     req.onerror   = (e) => reject(e.target.error);

@@ -123,22 +123,29 @@ const useScanStore = create((set, get) => ({
   },
 
   // ─── Scan ────────────────────────────────────────────────────────────────
+  _scanAbort: null,
+
+  cancelScan: () => {
+    const ctrl = get()._scanAbort;
+    if (ctrl) { ctrl.abort(); set({ _scanAbort: null, loading: false, progress: "Đã dừng quét.", error: null }); }
+  },
+
   runScan: async () => {
     const { area, blocks, boundary, maxResults } = get();
+    const ctrl = new AbortController();
     set({
       loading: true, error: null, progress: "Đang khởi động...",
       points: [], roads: [], cameras: [],
       rawIntersections: [], rawWays: [], rawSignalNodes: [],
       intersectionOverrides: {},
-      // Mark as unsaved (○) but keep the display name so user knows which project
-      // they were on and can still save/overwrite after the scan.
       sessionFilename: null,
       selectedPoint: null,
+      _scanAbort: ctrl,
     });
 
     try {
       const result = await browserScan(
-        { area, blocks, boundary, options: { maxResults, includeRoads: true } },
+        { area, blocks, boundary, options: { maxResults, includeRoads: true }, signal: ctrl.signal },
         (msg) => set({ progress: msg })
       );
 
@@ -152,6 +159,7 @@ const useScanStore = create((set, get) => ({
         bbox:             result.meta?.bbox || null,
         stats:            result.meta?.byCategory || {},
         loading:          false,
+        _scanAbort:       null,
         progress: (() => {
           const found = result.meta?.totalFound || 0;
           const total = result.meta?.totalBeforeCap || found;
@@ -163,7 +171,8 @@ const useScanStore = create((set, get) => ({
         error: null,
       });
     } catch (err) {
-      set({ loading: false, progress: "", error: err.message || "Quét thất bại" });
+      if (err.name === "AbortError") return; // cancelScan already set state
+      set({ loading: false, progress: "", error: err.message || "Quét thất bại", _scanAbort: null });
     }
   },
 

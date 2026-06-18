@@ -151,10 +151,6 @@ export default function Landing() {
             background: "none", border: "none", cursor: "pointer",
             color: C.dim, fontSize: "0.82rem", padding: "0.3rem 0.6rem",
           }}>Hướng dẫn</button>
-          <button onClick={() => navigate("/sys")} style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: C.muted, fontSize: "0.82rem", padding: "0.3rem 0.6rem",
-          }}>Hệ thống</button>
         </div>
       </nav>
 
@@ -377,10 +373,6 @@ export default function Landing() {
         fontSize: "0.78rem", color: C.muted, flexWrap: "wrap", gap: "0.5rem",
       }}>
         <span>© 2026 CamSpot · Camera Placement Scanner</span>
-        <div style={{ display: "flex", gap: "1.25rem" }}>
-          <button onClick={() => navigate("/guide")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.78rem", padding: 0 }}>Hướng dẫn</button>
-          <button onClick={() => navigate("/sys")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.78rem", padding: 0 }}>Hệ thống</button>
-        </div>
         <span>Data: OpenStreetMap · dvhcvn · Nominatim · Overpass API</span>
       </div>
     </div>
