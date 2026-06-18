@@ -39,12 +39,8 @@ function geometryAreaKm2(geometry) {
   return 0;
 }
 
-/* ── metrics definition ─────────────────────────────────────────── */
-const METRIC_TYPES = [
-  { key: "cam",          label: "Camera (ước tính)", icon: "📹", absKey: "camCount",    densKey: "camDensity",  absUnit: "cam",   densUnit: "cam/km²" },
-  { key: "poi",          label: "Địa điểm",          icon: "📍", absKey: "poiCount",    densKey: "poiDensity",  absUnit: "điểm",  densUnit: "/km²"    },
-  { key: "intersection", label: "Giao lộ",            icon: "🔀", absKey: "intersection",densKey: "ixDensity",   absUnit: "nút",   densUnit: "/km²"    },
-];
+/* ── single metric: camera estimate ────────────────────────────── */
+const METRIC = { absKey: "camCount", densKey: "camDensity", absUnit: "cam", densUnit: "cam/km²" };
 
 export default function CityMap() {
   const navigate = useNavigate();
@@ -52,13 +48,11 @@ export default function CityMap() {
   const mapInstance = useRef(null);
   const popupRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
-  const [metricType, setMetricType] = useState("cam");    // cam | road | intersection
   const [densityMode, setDensityMode] = useState(false);  // false = absolute, true = per km²
   const [hoveredWard, setHoveredWard] = useState(null);
 
-  const currentMT  = METRIC_TYPES.find(m => m.key === metricType) || METRIC_TYPES[0];
-  const metricKey  = densityMode ? currentMT.densKey : currentMT.absKey;
-  const metricUnit = densityMode ? currentMT.densUnit : currentMT.absUnit;
+  const metricKey  = densityMode ? METRIC.densKey : METRIC.absKey;
+  const metricUnit = densityMode ? METRIC.densUnit : METRIC.absUnit;
 
   const [wards, setWards] = useState([]);
   useEffect(() => {
@@ -139,12 +133,11 @@ export default function CityMap() {
           };
         });
 
-      // Compute max for each metric key (both abs and density)
-      const maxes = {};
-      for (const m of METRIC_TYPES) {
-        maxes[m.absKey]  = Math.max(...wardFeatures.map(f => f.properties[m.absKey]  || 0), 1);
-        maxes[m.densKey] = Math.max(...wardFeatures.map(f => f.properties[m.densKey] || 0), 1);
-      }
+      // Compute max for camera metric (abs + density)
+      const maxes = {
+        [METRIC.absKey]:  Math.max(...wardFeatures.map(f => f.properties[METRIC.absKey]  || 0), 1),
+        [METRIC.densKey]: Math.max(...wardFeatures.map(f => f.properties[METRIC.densKey] || 0), 1),
+      };
       map._maxes = maxes;
 
       const colorExpr = (prop, maxVal) => [
@@ -317,22 +310,18 @@ export default function CityMap() {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", flexWrap: "wrap" }}>
-          {METRIC_TYPES.map(m => (
-            <button key={m.key} onClick={() => setMetricType(m.key)} style={{
-              fontSize: "0.68rem", padding: "4px 10px", borderRadius: "5px", cursor: "pointer", fontWeight: 600,
-              background: metricType === m.key ? C.amber : C.card,
-              color: metricType === m.key ? "#000" : C.dim,
-              border: `1px solid ${metricType === m.key ? C.amber : C.border}`,
-            }}>{m.icon} {m.label}</button>
-          ))}
-          <div style={{ width: "1px", height: "18px", background: C.border, margin: "0 2px" }} />
-          <label style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "0.68rem", color: densityMode ? C.violet : C.dim, fontWeight: densityMode ? 700 : 400 }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "0.7rem",
+            color: densityMode ? C.violet : C.dim, fontWeight: densityMode ? 700 : 400,
+            background: densityMode ? `${C.violet}18` : "transparent",
+            border: `1px solid ${densityMode ? C.violet + "55" : C.border}`,
+            borderRadius: "6px", padding: "4px 9px",
+          }}>
             <input type="checkbox" checked={densityMode} onChange={e => setDensityMode(e.target.checked)}
-              style={{ accentColor: C.violet, cursor: "pointer", width: "13px", height: "13px" }} />
-            Mật độ / km²
+              style={{ accentColor: C.violet, cursor: "pointer", width: "12px", height: "12px" }} />
+            Mật độ /km²
           </label>
-          <div style={{ width: "1px", height: "18px", background: C.border }} />
+          <div style={{ width: "1px", height: "20px", background: C.border }} />
           <button onClick={() => navigate("/city/report")} style={{
             fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
             background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`, color: C.cyan,
@@ -355,7 +344,7 @@ export default function CityMap() {
           padding: "0.7rem 1rem", minWidth: "180px",
         }}>
           <div style={{ fontSize: "0.6rem", fontWeight: 800, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
-            {currentMT.icon} {currentMT.label}
+            📹 Camera ước tính
             {densityMode && <span style={{ color: C.violet, marginLeft: "0.3rem" }}>/ km²</span>}
           </div>
           <div style={{ display: "flex", height: "10px", borderRadius: "5px", overflow: "hidden", marginBottom: "0.25rem" }}>
@@ -376,11 +365,14 @@ export default function CityMap() {
               <div style={{ fontSize: "0.7rem", color: C.amber, fontWeight: 700 }}>
                 {Number(hoveredWard[metricKey] || 0).toLocaleString("vi-VN")} {metricUnit}
               </div>
-              <div style={{ fontSize: "0.65rem", color: C.muted, marginTop: "0.15rem" }}>
+              <div style={{ fontSize: "0.65rem", color: C.muted, marginTop: "0.1rem" }}>
                 {hoveredWard.areaKm2} km² · {Number(hoveredWard.camDensity).toLocaleString("vi-VN")} cam/km²
               </div>
-              <div style={{ fontSize: "0.63rem", color: C.dim, marginTop: "0.1rem" }}>
-                Click để xem chi tiết + mở Scanner
+              <div style={{ fontSize: "0.63rem", color: C.cyan, marginTop: "0.1rem" }}>
+                {Number(hoveredWard.poiCount || 0).toLocaleString("vi-VN")} địa điểm
+              </div>
+              <div style={{ fontSize: "0.6rem", color: C.dim, marginTop: "0.2rem" }}>
+                Click để xem chi tiết phường
               </div>
             </div>
           )}
