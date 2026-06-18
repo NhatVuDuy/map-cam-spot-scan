@@ -256,6 +256,7 @@ export async function browserScan({ area, blocks, categories, boundary = null, o
 
   const allScoredPoints = scorePoints(points, center);
   const totalBeforeCap  = allScoredPoints.length;
+  if (maxResults === Infinity) console.log("[scan] maxResults=Infinity, returning all", allScoredPoints.length, "points");
   points = allScoredPoints.slice(0, maxResults);
 
   // Road ways for rendering + CAM1 placement

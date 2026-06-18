@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useScanner } from "../../hooks/useScanner.js";
 import { useExport } from "../../hooks/useExport.js";
-import { BLOCKS, BLOCK_KEYS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
+import { BLOCKS, BLOCK_KEYS, SQUARE_BLOCKS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
@@ -49,7 +49,7 @@ function MiniBar({ label, value, max, color, total }) {
       <div style={{ flex: 1, height: "6px", background: `${color}20`, borderRadius: "3px", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}99)`, borderRadius: "3px", transition: "width 0.6s ease" }} />
       </div>
-      <div style={{ fontSize: "0.68rem", color: C.muted, width: "26px", textAlign: "right", flexShrink: 0 }}>{value}</div>
+      <div style={{ fontSize: "0.68rem", color: "#cbd5e1", width: "26px", textAlign: "right", flexShrink: 0 }}>{value}</div>
       <div style={{ fontSize: "0.62rem", color: `${color}aa`, width: "28px", textAlign: "right", flexShrink: 0 }}>{share}%</div>
     </div>
   );
@@ -79,28 +79,20 @@ function BlockFilter() {
   return (
     <div style={{ padding: "0.6rem 0.85rem" }}>
       <div style={{ fontSize: "0.67rem", color: C.muted, marginBottom: "0.75rem", lineHeight: 1.5 }}>
-        Bật/tắt hiển thị từng loại. Click tên để lọc danh sách.
-        {filter && (
-          <button onClick={() => setFilter(null)} style={{
-            marginLeft: "0.5rem", fontSize: "0.62rem", padding: "1px 7px",
-            background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`,
-            borderRadius: "100px", color: C.cyan, cursor: "pointer",
-          }}>✕ Bỏ lọc</button>
-        )}
+        Bật/tắt hiển thị từng loại trên bản đồ và danh sách.
       </div>
       {BLOCK_KEYS.map((key) => {
         const block   = BLOCKS[key];
         const count   = counts[key] || 0;
         if (!count) return null;
         const hidden   = hiddenBlocks.includes(key);
-        const isFilter = filter === key;
         return (
           <div key={key} style={{
             display: "flex", alignItems: "center", gap: "0.45rem",
             padding: "0.35rem 0.5rem", marginBottom: "3px",
             borderRadius: "7px",
-            background: isFilter ? `${block.color}18` : hidden ? `${block.color}05` : `${block.color}09`,
-            border: `1px solid ${isFilter ? block.color + "55" : block.color + "20"}`,
+            background: hidden ? `${block.color}05` : `${block.color}09`,
+            border: `1px solid ${block.color}20`,
             opacity: hidden ? 0.5 : 1,
             transition: "all 0.15s",
           }}>
@@ -118,8 +110,7 @@ function BlockFilter() {
             <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: block.color, flexShrink: 0 }} />
             {/* block code + name */}
             <span
-              style={{ flex: 1, fontSize: "0.74rem", color: isFilter ? C.text : C.dim, userSelect: "none", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-              onClick={() => setFilter(isFilter ? null : key)}
+              style={{ flex: 1, fontSize: "0.74rem", color: C.dim, userSelect: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
             >
               <strong style={{ color: block.color, marginRight: "3px" }}>{key}</strong>{block.name}
             </span>
@@ -344,8 +335,11 @@ function StatsTab() {
                 borderRadius: "6px",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.2rem" }}>
-                  <span style={{ fontSize: "0.73rem", color: block.color, fontWeight: 700 }}>{block.symbol} {blockId}</span>
-                  <span style={{ fontSize: "0.68rem", color: C.dim }}>{cnt} vị trí × {camTotal(block)} cam = <strong style={{ color: C.amber }}>{total_block_cams}</strong></span>
+                  <span style={{ fontSize: "0.73rem", color: block.color, fontWeight: 700 }}>
+                    <span style={{ marginRight: "3px" }}>{SQUARE_BLOCKS.includes(blockId) ? "■" : "●"}</span>
+                    {block.symbol} {blockId}
+                  </span>
+                  <span style={{ fontSize: "0.68rem", color: "#cbd5e1" }}>{cnt} vị trí × {camTotal(block)} cam = <strong style={{ color: "#f1f5f9" }}>{total_block_cams}</strong></span>
                 </div>
                 <div style={{ fontSize: "0.66rem", color: C.muted, lineHeight: 1.6 }}>
                   {CAM_TYPES.filter(t => block.cams[t] > 0).map(t => (

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
 import { planAllCameras, pickAlleyArmBearing } from "../algorithms/cameraPlacement.js";
-import { DEFAULT_BLOCKS } from "../config/blocks.js";
+import { DEFAULT_BLOCKS, BLOCKS } from "../config/blocks.js";
 import { importSession } from "../utils/sessionFile.js";
 import {
   listSessions, readSession, writeSession,
@@ -339,6 +339,18 @@ const useScanStore = create((set, get) => ({
       sessionFilename: null, sessionDisplayName: null,
       error: null, progress: "", selectedPoint: null,
     }),
+
+  updatePointBlock: (id, newBlockId) => {
+    const block = BLOCKS[newBlockId];
+    if (!block) return;
+    const points = get().points.map(p => p.id !== id ? p : {
+      ...p,
+      blockId: newBlockId,
+      category: newBlockId,
+      color: block.color,
+    });
+    set({ points });
+  },
 
   setFilter: (filter) => set({ filter }),
   setHoveredPoint: (hoveredPoint) => set({ hoveredPoint }),

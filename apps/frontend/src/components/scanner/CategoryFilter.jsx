@@ -1,6 +1,6 @@
 import React from "react";
 import { useScanner } from "../../hooks/useScanner.js";
-import { BLOCKS, BLOCK_KEYS, DEFAULT_BLOCKS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
+import { BLOCKS, BLOCK_KEYS, DEFAULT_BLOCKS, SQUARE_BLOCKS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
 
 const C = {
   bg: "#060d1a", card: "#0d1829", border: "#1a2e4a",
@@ -63,7 +63,7 @@ export default function CategoryFilter() {
                   style={{ marginTop:"1px", cursor: isManual ? "not-allowed" : "pointer", accentColor: block.color }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:"0.3rem" }}>
-                    <span style={{ width:"6px", height:"6px", borderRadius:"50%", background: block.color, flexShrink:0 }} />
+                    <span style={{ color: block.color, fontSize: "0.7rem", flexShrink:0 }}>{SQUARE_BLOCKS.includes(key) ? "■" : "●"}</span>
                     <span style={{ fontSize:"0.65rem", fontWeight:700, color: block.color }}>{key}</span>
                     <span style={{ fontSize:"0.7rem", color: checked ? C.text : C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{block.name}</span>
                     {isManual && <span style={{ fontSize:"0.58rem", color:C.amber }}>⚠</span>}
