@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { CATEGORIES } from "../../utils/categories.js";
+import { BLOCKS } from "../../config/blocks.js";
 
 const C = {
   bg: "#0d1829", bg2: "#0f1f35", border: "#1e3354",
@@ -14,7 +14,7 @@ const menuStyle = {
   border: `1px solid ${C.border}`,
   borderRadius: "8px",
   boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-  minWidth: "200px",
+  minWidth: "220px",
   overflow: "hidden",
   userSelect: "none",
 };
@@ -57,18 +57,22 @@ function CoordBadge({ lat, lng }) {
   );
 }
 
+const ROAD_BLOCKS  = ["B01","B02","B03","B04","B05","B06","B07","B07-S"];
+const PLACE_BLOCKS = ["B08","B09","B10","B11","B12","B13"];
+
 function AddPointForm({ lat, lng, onAdd, onCancel }) {
-  const [category, setCategory] = useState("school");
-  const [name, setName] = useState("");
-  const catKeys = Object.keys(CATEGORIES).filter(k => k !== "intersection");
+  const [blockId, setBlockId] = useState("B08");
+  const [name, setName]       = useState("");
+  const block = BLOCKS[blockId] || BLOCKS.B08;
 
   const submit = () => {
-    const cat = CATEGORIES[category];
     onAdd({
       id: `custom-${Date.now()}`,
       lat, lng,
-      category,
-      name: name.trim() || cat.label,
+      blockId,
+      category: blockId,
+      color: block.color,
+      name: name.trim() || block.name,
       distanceM: 0,
       score: 0,
       source: "custom",
@@ -81,6 +85,19 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
       <div style={{ fontSize: "0.67rem", color: C.muted, marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
         Thêm điểm thủ công
       </div>
+
+      {/* Selected block preview */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "6px",
+        marginBottom: "8px", padding: "5px 8px",
+        background: `${block.color}15`, border: `1px solid ${block.color}44`,
+        borderRadius: "6px",
+      }}>
+        <span style={{ color: block.color, fontSize: "0.75rem" }}>{block.shape === "square" ? "■" : "●"}</span>
+        <span style={{ color: block.color, fontWeight: 700, fontSize: "0.7rem" }}>{blockId}</span>
+        <span style={{ color: "#cbd5e1", fontSize: "0.7rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.name}</span>
+      </div>
+
       <input
         autoFocus
         placeholder="Tên địa điểm (tùy chọn)"
@@ -91,21 +108,32 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
           width: "100%", padding: "5px 8px", marginBottom: "6px",
           background: C.bg2, border: `1px solid ${C.border}`,
           borderRadius: "5px", color: C.text, fontSize: "0.78rem", outline: "none",
+          boxSizing: "border-box",
         }}
       />
+
       <select
-        value={category}
-        onChange={e => setCategory(e.target.value)}
+        value={blockId}
+        onChange={e => setBlockId(e.target.value)}
         style={{
           width: "100%", padding: "5px 8px", marginBottom: "8px",
           background: C.bg2, border: `1px solid ${C.border}`,
-          borderRadius: "5px", color: C.text, fontSize: "0.78rem", outline: "none",
+          borderRadius: "5px", color: C.text, fontSize: "0.72rem", outline: "none",
+          boxSizing: "border-box",
         }}
       >
-        {catKeys.map(k => (
-          <option key={k} value={k}>{CATEGORIES[k].label}</option>
-        ))}
+        <optgroup label="Giao lộ & Đường">
+          {ROAD_BLOCKS.map(k => (
+            <option key={k} value={k}>● {k} — {BLOCKS[k].name}</option>
+          ))}
+        </optgroup>
+        <optgroup label="Địa điểm & Công trình">
+          {PLACE_BLOCKS.map(k => (
+            <option key={k} value={k}>■ {k} — {BLOCKS[k].name}</option>
+          ))}
+        </optgroup>
       </select>
+
       <div style={{ display: "flex", gap: "6px" }}>
         <button onClick={submit} style={{
           flex: 1, padding: "5px", background: `${C.cyan}22`,
@@ -126,7 +154,6 @@ export default function MapContextMenu({ x, y, lat, lng, onClose, onMoveCenter, 
   const [mode, setMode] = useState("menu"); // "menu" | "add"
   const ref = useRef(null);
 
-  // Close on outside click or Escape
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
@@ -138,9 +165,8 @@ export default function MapContextMenu({ x, y, lat, lng, onClose, onMoveCenter, 
     };
   }, [onClose]);
 
-  // Adjust position so menu doesn't overflow viewport
   const style = { ...menuStyle };
-  const menuW = 210, menuH = mode === "add" ? 220 : 160;
+  const menuW = 225, menuH = mode === "add" ? 280 : 160;
   style.left = x + menuW > window.innerWidth  ? x - menuW : x;
   style.top  = y + menuH > window.innerHeight ? y - menuH : y;
 

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
 import { planAllCameras, pickAlleyArmBearing } from "../algorithms/cameraPlacement.js";
 import { CATEGORIES } from "../utils/categories.js";
+import { BLOCKS } from "../config/blocks.js";
 import { importSession } from "../utils/sessionFile.js";
 import {
   listSessions, readSession, writeSession,
@@ -66,6 +67,15 @@ const useScanStore = create((set, get) => ({
   toggleBlockVisibility: (blockId) => {
     const h = get().hiddenBlocks;
     set({ hiddenBlocks: h.includes(blockId) ? h.filter(b => b !== blockId) : [...h, blockId] });
+  },
+
+  updatePointBlock: (id, newBlockId) => {
+    const block = BLOCKS[newBlockId];
+    if (!block) return;
+    const points = get().points.map(p => p.id !== id ? p : {
+      ...p, blockId: newBlockId, category: newBlockId, color: block.color,
+    });
+    set({ points });
   },
 
   addPoint: (point) => {
