@@ -99,6 +99,7 @@ function QueryCategories() {
                 style={{ cursor: "pointer", accentColor: cat.color, margin: 0, flexShrink: 0 }}
               />
               <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
+              <span style={{ color: cat.color, fontWeight: 700, fontSize: "0.65rem", flexShrink: 0 }}>[{key}]</span>
               <span style={{
                 fontSize: "0.72rem",
                 color: checked ? C.text : C.muted,

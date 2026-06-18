@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useScanner } from "../../hooks/useScanner.js";
 import { useExport } from "../../hooks/useExport.js";
 import { BLOCKS, BLOCK_KEYS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
@@ -139,6 +139,13 @@ function BlockFilter() {
 function ResultsList() {
   const { points, filter, hiddenBlocks, selectedPoint, setSelectedPoint, removePoint } = useScanner();
   const [confirmId, setConfirmId] = useState(null);
+  const itemRefs = useRef({});
+
+  useEffect(() => {
+    if (selectedPoint) {
+      itemRefs.current[selectedPoint.id]?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [selectedPoint]);
   const confirmPoint = confirmId ? points.find(p => p.id === confirmId) : null;
   const { exportCSV, exportGeoJSON } = useExport();
 
@@ -182,6 +189,7 @@ function ResultsList() {
             return (
               <div
                 key={p.id}
+                ref={el => { itemRefs.current[p.id] = el; }}
                 onClick={() => setSelectedPoint(isSelected ? null : p)}
                 style={{
                   padding: "0.45rem 0.85rem",

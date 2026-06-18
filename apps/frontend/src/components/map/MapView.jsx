@@ -319,6 +319,7 @@ function MapViewInner() {
 
   const area          = useScanStore((s) => s.area);
   const points        = useScanStore((s) => s.points);
+  const hiddenBlocks  = useScanStore((s) => s.hiddenBlocks);
   const roads         = useScanStore((s) => s.roads);
   const cameras       = useScanStore((s) => s.cameras);
   const showCameras   = useScanStore((s) => s.showCameras);
@@ -486,7 +487,7 @@ function MapViewInner() {
         filter: poiFilter,
         minzoom: 14,
         layout: {
-          "text-field": ["get", "name"],
+          "text-field": ["get", "label"],
           "text-size": 11,
           "text-offset": [0, 1.4],
           "text-anchor": "top",
@@ -589,7 +590,7 @@ function MapViewInner() {
         filter: ixFilter,
         minzoom: 15,
         layout: {
-          "text-field": ["get", "name"],
+          "text-field": ["get", "label"],
           "text-size": 10,
           "text-offset": [0, 1.6],
           "text-anchor": "top",
@@ -616,6 +617,21 @@ function MapViewInner() {
           "icon-rotation-alignment": "map",
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
+        },
+      });
+
+      // ── Highlight selected intersection ───────────────────────────────────
+      map.addLayer({
+        id: "intersections-selected",
+        type: "circle",
+        source: "points",
+        filter: ["==", ["get", "id"], "__none__"],
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 14, 16, 22],
+          "circle-color": "transparent",
+          "circle-stroke-width": 3,
+          "circle-stroke-color": "#FACC15",
+          "circle-opacity": 0,
         },
       });
 
@@ -765,15 +781,19 @@ function MapViewInner() {
   // ── 4. Update points (POIs + intersections in one source) ───────────────────
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
+    const visiblePoints = hiddenBlocks.length > 0
+      ? points.filter(p => !hiddenBlocks.includes(p.blockId || p.category))
+      : points;
     const fc = {
       type: "FeatureCollection",
-      features: points.map((p) => ({
+      features: visiblePoints.map((p) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         properties: {
           id: p.id,
           category: p.category,
           name: p.name,
+          label: (p.blockId ? `[${p.blockId}] ` : "") + (p.name || ""),
           distanceM: p.distanceM,
           score: p.score ?? 0,
           blockId: p.blockId || null,
@@ -804,7 +824,7 @@ function MapViewInner() {
         }));
       }
     }
-  }, [mapReady, points]);
+  }, [mapReady, points, hiddenBlocks]);
 
   // ── 4b. Update cameras ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -852,10 +872,14 @@ function MapViewInner() {
 
     if (!selectedPoint) {
       map.setFilter("points-selected", ["==", ["get", "id"], "__none__"]);
+      map.setFilter("intersections-selected", ["==", ["get", "id"], "__none__"]);
       return;
     }
 
     map.setFilter("points-selected", ["==", ["get", "id"], selectedPoint.id]);
+    map.setFilter("intersections-selected", selectedPoint
+      ? ["==", ["get", "id"], selectedPoint.id]
+      : ["==", ["get", "id"], "__none__"]);
     map.flyTo({ center: [selectedPoint.lng, selectedPoint.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
 
     if (selectedPoint.category !== "intersection") {

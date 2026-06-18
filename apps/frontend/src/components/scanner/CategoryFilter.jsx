@@ -60,6 +60,7 @@ export default function CategoryFilter() {
               onChange={() => toggle(key)}
             />
             <span style={styles.dot(cat.color)} />
+            <span style={{ color: cat.color, fontWeight: 700, fontSize: "0.65rem", flexShrink: 0 }}>[{key}]</span>
             <span style={styles.label}>{cat.label}</span>
           </label>
         );
