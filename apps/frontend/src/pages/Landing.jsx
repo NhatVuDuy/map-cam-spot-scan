@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { version } from "../../package.json";
 
 const C = {
   bg:     "#060d1a",
@@ -145,6 +146,11 @@ export default function Landing() {
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
           <span style={{ fontSize: "1.3rem" }}>📹</span>
           <span style={{ fontWeight: 700, color: C.text, letterSpacing: "0.02em" }}>CamSpot</span>
+          <span style={{
+            fontSize: "0.6rem", fontWeight: 700, color: C.muted,
+            background: "#1e3354", borderRadius: "4px", padding: "2px 6px",
+            letterSpacing: "0.04em",
+          }}>v{version}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <button onClick={() => navigate("/guide")} style={{
