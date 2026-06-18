@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { CATEGORIES } from "../../utils/categories.js";
+import { BLOCKS, SQUARE_BLOCKS } from "../../config/blocks.js";
 
 const C = {
   bg: "#0d1829", bg2: "#0f1f35", border: "#1e3354",
@@ -57,18 +58,22 @@ function CoordBadge({ lat, lng }) {
   );
 }
 
+const CIRCLE_BLOCK_KEYS = ["B01","B02","B03","B04","B05","B06","B07","B07-S"];
+
 function AddPointForm({ lat, lng, onAdd, onCancel }) {
-  const [category, setCategory] = useState("school");
+  const [blockId, setBlockId] = useState("B08");
   const [name, setName] = useState("");
-  const catKeys = Object.keys(CATEGORIES).filter(k => k !== "intersection");
+
+  const selectedBlock = BLOCKS[blockId];
 
   const submit = () => {
-    const cat = CATEGORIES[category];
     onAdd({
       id: `custom-${Date.now()}`,
       lat, lng,
-      category,
-      name: name.trim() || cat.label,
+      blockId,
+      category: blockId,
+      color: selectedBlock?.color,
+      name: name.trim() || selectedBlock?.name || blockId,
       distanceM: 0,
       score: 0,
       source: "custom",
@@ -81,6 +86,13 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
       <div style={{ fontSize: "0.67rem", color: C.muted, marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
         Thêm điểm thủ công
       </div>
+      {selectedBlock && (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", padding: "4px 8px", background: `${selectedBlock.color}15`, border: `1px solid ${selectedBlock.color}40`, borderRadius: "5px" }}>
+          <span style={{ color: selectedBlock.color, fontSize: "0.85rem" }}>{SQUARE_BLOCKS.includes(blockId) ? "■" : "●"}</span>
+          <span style={{ color: selectedBlock.color, fontWeight: 700, fontSize: "0.72rem" }}>[{blockId}]</span>
+          <span style={{ color: C.text, fontSize: "0.72rem" }}>{selectedBlock.name}</span>
+        </div>
+      )}
       <input
         autoFocus
         placeholder="Tên địa điểm (tùy chọn)"
@@ -94,17 +106,24 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
         }}
       />
       <select
-        value={category}
-        onChange={e => setCategory(e.target.value)}
+        value={blockId}
+        onChange={e => setBlockId(e.target.value)}
         style={{
           width: "100%", padding: "5px 8px", marginBottom: "8px",
-          background: C.bg2, border: `1px solid ${C.border}`,
-          borderRadius: "5px", color: C.text, fontSize: "0.78rem", outline: "none",
+          background: "#1e293b", border: "1px solid #334155",
+          borderRadius: "5px", color: "#e2e8f0", fontSize: "0.72rem", outline: "none", cursor: "pointer",
         }}
       >
-        {catKeys.map(k => (
-          <option key={k} value={k}>{CATEGORIES[k].label}</option>
-        ))}
+        <optgroup label="Giao lộ & Đường">
+          {CIRCLE_BLOCK_KEYS.map(k => (
+            <option key={k} value={k}>{SQUARE_BLOCKS.includes(k) ? "■" : "●"} {k} {BLOCKS[k]?.name}</option>
+          ))}
+        </optgroup>
+        <optgroup label="Địa điểm & Công trình">
+          {SQUARE_BLOCKS.map(k => (
+            <option key={k} value={k}>■ {k} {BLOCKS[k]?.name}</option>
+          ))}
+        </optgroup>
       </select>
       <div style={{ display: "flex", gap: "6px" }}>
         <button onClick={submit} style={{

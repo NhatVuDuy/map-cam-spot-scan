@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import useScanStore from "../../store/scanStore.js";
 import { CATEGORIES } from "../../utils/categories.js";
-import { BLOCKS } from "../../config/blocks.js";
+import { BLOCKS, SQUARE_BLOCKS } from "../../config/blocks.js";
 import { circleGeoJSON } from "../../utils/geo.js";
 import { bearingBetween } from "../../utils/bearing.js";
 import MapContextMenu from "./MapContextMenu.jsx";
@@ -142,6 +142,12 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
           <code style="color:#94a3b8;font-size:0.72rem">${lat}, ${lon}</code>
         </div>
         ${score != null ? `<div style="display:flex;justify-content:space-between;font-size:0.78rem"><span style="color:#64748b">Điểm ưu tiên</span><strong style="color:#FBBF24">★ ${score}</strong></div>` : ""}
+      </div>
+      <div style="padding:0.3rem 0.85rem 0rem">
+        <label style="font-size:0.68rem;color:#64748b;display:block;margin-bottom:3px">Loại địa điểm</label>
+        <select data-change-block-id="${props.id}" style="width:100%;padding:4px 6px;background:#1e293b;border:1px solid #334155;border-radius:5px;color:#e2e8f0;font-size:0.72rem;cursor:pointer">
+          ${Object.entries(BLOCKS).map(([k,b]) => `<option value="${k}" ${k === (props.blockId||'') ? 'selected' : ''}>${k} ${b.name}</option>`).join('')}
+        </select>
       </div>
       <div style="padding:0.4rem 0.85rem 0.65rem">
         <button data-delete-id="${props.id}"
@@ -376,9 +382,18 @@ function MapViewInner() {
     const onChange = (e) => {
       // Intersection shape selector
       const select = e.target.closest("[data-ix-shape]");
-      if (!select) return;
-      const id = select.getAttribute("data-ix-shape");
-      useScanStore.getState().setIntersectionOverride(id, { intersectionShape: select.value });
+      if (select) {
+        const id = select.getAttribute("data-ix-shape");
+        useScanStore.getState().setIntersectionOverride(id, { intersectionShape: select.value });
+        return;
+      }
+      // Change block type selector
+      const blockSel = e.target.closest("select[data-change-block-id]");
+      if (blockSel) {
+        const id = blockSel.dataset.changeBlockId;
+        const newBlockId = blockSel.value;
+        useScanStore.getState().updatePointBlock(id, newBlockId);
+      }
     };
 
     document.addEventListener("click",  onClick);
@@ -439,12 +454,34 @@ function MapViewInner() {
       map.addSource("points", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
 
       const poiFilter = ["!=", ["get", "category"], "intersection"];
+      const circlePoiFilter = ["all", poiFilter, ["!", ["in", ["get", "blockId"], ["literal", SQUARE_BLOCKS]]]];
+
+      // Draw square sprites for B08-B13
+      SQUARE_BLOCKS.forEach(blockId => {
+        const block = BLOCKS[blockId];
+        if (!block || map.hasImage(`sq-${blockId}`)) return;
+        const size = 24;
+        const canvas = document.createElement("canvas");
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        // White border
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.roundRect(1, 1, size - 2, size - 2, 3);
+        ctx.fill();
+        // Colored fill
+        ctx.fillStyle = block.color;
+        ctx.beginPath();
+        ctx.roundRect(3, 3, size - 6, size - 6, 2);
+        ctx.fill();
+        map.addImage(`sq-${blockId}`, { width: size, height: size, data: new Uint8Array(ctx.getImageData(0, 0, size, size).data.buffer) });
+      });
 
       map.addLayer({
         id: "points-halo",
         type: "circle",
         source: "points",
-        filter: poiFilter,
+        filter: circlePoiFilter,
         paint: {
           "circle-color": ["get", "color"],
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 9, 16, 18],
@@ -457,7 +494,7 @@ function MapViewInner() {
         id: "points-circle",
         type: "circle",
         source: "points",
-        filter: poiFilter,
+        filter: circlePoiFilter,
         paint: {
           "circle-color": ["get", "color"],
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4, 16, 10],
@@ -480,6 +517,50 @@ function MapViewInner() {
         },
       });
 
+      // Square halo (larger, semi-transparent)
+      map.addLayer({
+        id: "points-square-halo",
+        type: "symbol",
+        source: "points",
+        filter: ["in", ["get", "blockId"], ["literal", SQUARE_BLOCKS]],
+        layout: {
+          "icon-image": ["concat", "sq-", ["get", "blockId"]],
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 1.0, 16, 1.8],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+        paint: { "icon-opacity": 0.35 },
+      });
+
+      // Square main
+      map.addLayer({
+        id: "points-square",
+        type: "symbol",
+        source: "points",
+        filter: ["in", ["get", "blockId"], ["literal", SQUARE_BLOCKS]],
+        layout: {
+          "icon-image": ["concat", "sq-", ["get", "blockId"]],
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.7, 16, 1.3],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+        paint: { "icon-opacity": 1 },
+      });
+
+      // Square selected
+      map.addLayer({
+        id: "points-square-selected",
+        type: "symbol",
+        source: "points",
+        filter: ["==", ["get", "id"], "__none__"],
+        layout: {
+          "icon-image": ["concat", "sq-", ["get", "blockId"]],
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 1.0, 16, 1.7],
+          "icon-allow-overlap": true,
+        },
+        paint: { "icon-opacity": 1 },
+      });
+
       map.addLayer({
         id: "points-label",
         type: "symbol",
@@ -488,15 +569,17 @@ function MapViewInner() {
         minzoom: 14,
         layout: {
           "text-field": ["get", "label"],
-          "text-size": 11,
+          "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10, 18, 13],
+          "text-font": ["literal", ["Open Sans Bold", "Arial Unicode MS Bold"]],
           "text-offset": [0, 1.4],
           "text-anchor": "top",
           "text-optional": true,
         },
         paint: {
           "text-color": "#f1f5f9",
-          "text-halo-color": "#0f172a",
-          "text-halo-width": 1.5,
+          "text-halo-color": "#000000",
+          "text-halo-width": 2,
+          "text-halo-blur": 0,
         },
       });
 
@@ -591,15 +674,17 @@ function MapViewInner() {
         minzoom: 15,
         layout: {
           "text-field": ["get", "label"],
-          "text-size": 10,
+          "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10, 18, 13],
+          "text-font": ["literal", ["Open Sans Bold", "Arial Unicode MS Bold"]],
           "text-offset": [0, 1.6],
           "text-anchor": "top",
           "text-optional": true,
         },
         paint: {
           "text-color": "#FF6B6B",
-          "text-halo-color": "#0f172a",
-          "text-halo-width": 1.5,
+          "text-halo-color": "#000000",
+          "text-halo-width": 2,
+          "text-halo-blur": 0,
         },
       });
 
@@ -674,7 +759,7 @@ function MapViewInner() {
       map.on("mouseleave", "intersections-minor",  () => { map.getCanvas().style.cursor = ""; });
 
       // ── Click: POI circle ──────────────────────────────────────────────────
-      map.on("click", "points-circle", (e) => {
+      const openPoiPopup = (e) => {
         if (aimingRef.current) return;
         const props   = e.features[0].properties;
         const cat     = CATEGORIES[props.category];
@@ -687,9 +772,13 @@ function MapViewInner() {
           .setLngLat(e.lngLat)
           .setHTML(buildPopupHTML({ props, cat, distFmt }))
           .addTo(map);
-      });
+      };
+      map.on("click", "points-circle", openPoiPopup);
+      map.on("click", "points-square", openPoiPopup);
       map.on("mouseenter", "points-circle", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "points-circle", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "points-square", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "points-square", () => { map.getCanvas().style.cursor = ""; });
 
       // ── Draggable center marker ────────────────────────────────────────────
       const el = Object.assign(document.createElement("div"), { title: "Kéo để đổi tâm" });
@@ -873,6 +962,9 @@ function MapViewInner() {
     if (!selectedPoint) {
       map.setFilter("points-selected", ["==", ["get", "id"], "__none__"]);
       map.setFilter("intersections-selected", ["==", ["get", "id"], "__none__"]);
+      if (map.getLayer("points-square-selected")) {
+        map.setFilter("points-square-selected", ["==", ["get", "id"], "__none__"]);
+      }
       return;
     }
 
@@ -880,6 +972,11 @@ function MapViewInner() {
     map.setFilter("intersections-selected", selectedPoint
       ? ["==", ["get", "id"], selectedPoint.id]
       : ["==", ["get", "id"], "__none__"]);
+    if (map.getLayer("points-square-selected")) {
+      map.setFilter("points-square-selected", selectedPoint
+        ? ["==", ["get", "id"], selectedPoint.id]
+        : ["==", ["get", "id"], "__none__"]);
+    }
     map.flyTo({ center: [selectedPoint.lng, selectedPoint.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
 
     if (selectedPoint.category !== "intersection") {
