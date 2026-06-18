@@ -149,6 +149,37 @@ function MaxResultsControl() {
   );
 }
 
+/* ─── collapsible config panel ───────────────────────────────────────────── */
+function ConfigPanel() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, background: C.bg, flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0.45rem 0.75rem", background: "none", border: "none", cursor: "pointer",
+          color: open ? C.cyan : C.muted, fontSize: "0.68rem", fontWeight: 700,
+        }}
+      >
+        <span>⚙ Cấu hình quét</span>
+        <span style={{ fontSize: "0.7rem", transition: "transform 0.2s", display: "inline-block", transform: open ? "rotate(180deg)" : "none" }}>▼</span>
+      </button>
+      {open && (
+        <div style={{ padding: "0 0.75rem 0.65rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div>
+            <SectionLabel>Loại địa điểm cần quét</SectionLabel>
+            <QueryCategories />
+          </div>
+          <div>
+            <MaxResultsControl />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── main sidebar ────────────────────────────────────────────────────────── */
 export default function Sidebar({ fullscreen = false, onCollapse }) {
   const [mode, setMode] = useState("radius"); // "boundary" | "radius"
@@ -249,21 +280,8 @@ export default function Sidebar({ fullscreen = false, onCollapse }) {
 
       </div>
 
-      {/* ── categories anchored to bottom ────────────────────────────────── */}
-      <div style={{
-        borderTop: `1px solid ${C.border}`,
-        padding: "0.6rem 0.75rem 0.5rem",
-        background: C.bg,
-        flexShrink: 0,
-      }}>
-        <SectionLabel>Loại địa điểm cần quét</SectionLabel>
-        <QueryCategories />
-      </div>
-
-      {/* ── max results ─────────────────────────────────────────────────── */}
-      <div style={{ padding: "0.45rem 0.75rem", borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <MaxResultsControl />
-      </div>
+      {/* ── collapsible config ───────────────────────────────────────────── */}
+      <ConfigPanel />
 
       {/* ── scan button ─────────────────────────────────────────────────── */}
       <div style={{ padding: "0.55rem 0.75rem", borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>

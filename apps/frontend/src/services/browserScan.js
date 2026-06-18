@@ -83,22 +83,28 @@ function buildOverpassQuery(bbox, blocks) {
 async function fetchOverpass(query, abortSignal) {
   for (const endpoint of OVERPASS_ENDPOINTS) {
     if (abortSignal?.aborted) throw new DOMException("Aborted", "AbortError");
-    try {
-      const timeoutSignal = AbortSignal.timeout(35_000);
-      const signal = abortSignal
-        ? AbortSignal.any([abortSignal, timeoutSignal])
-        : timeoutSignal;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `data=${encodeURIComponent(query)}`,
-        signal,
-      });
-      if (!res.ok) continue;
-      return await res.json();
-    } catch (err) {
-      if (err.name === "AbortError") throw err; // propagate user abort immediately
-      /* try next endpoint */
+    let lastErr;
+    for (let attempt = 0; attempt < 2; attempt++) {          // 1 retry per endpoint
+      if (abortSignal?.aborted) throw new DOMException("Aborted", "AbortError");
+      try {
+        const timeoutSignal = AbortSignal.timeout(20_000);
+        const signal = abortSignal
+          ? AbortSignal.any([abortSignal, timeoutSignal])
+          : timeoutSignal;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `data=${encodeURIComponent(query)}`,
+          signal,
+        });
+        if (!res.ok) { lastErr = new Error(`HTTP ${res.status}`); break; } // non-2xx → skip endpoint
+        return await res.json();
+      } catch (err) {
+        if (err.name === "AbortError") throw err;
+        lastErr = err;
+        // brief pause before retry
+        if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+      }
     }
   }
   throw new Error("Tất cả Overpass endpoints đều thất bại. Vui lòng thử lại.");
