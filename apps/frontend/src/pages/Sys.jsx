@@ -239,13 +239,18 @@ export default function Sys() {
             <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>System Architecture</span>
           </div>
         </div>
-        <button onClick={() => navigate("/scan")} style={{
-          background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
-          border: "none", borderRadius: "8px",
-          padding: "0.4rem 1.1rem",
-          color: "#fff", fontWeight: 700, fontSize: "0.8rem",
-          cursor: "pointer",
-        }}>Open Scanner →</button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button onClick={() => navigate("/guide")} style={{
+            background: `${C.amber}18`, border: `1px solid ${C.amber}44`,
+            borderRadius: "7px", padding: "0.35rem 0.9rem",
+            color: C.amber, fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
+          }}>📘 Hướng dẫn</button>
+          <button onClick={() => navigate("/scan")} style={{
+            background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
+            border: "none", borderRadius: "8px", padding: "0.4rem 1.1rem",
+            color: "#fff", fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
+          }}>Open Scanner →</button>
+        </div>
       </nav>
 
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "3rem 2rem" }}>
@@ -272,8 +277,8 @@ export default function Sys() {
             title="Browser Service Layer"
             icon="🛰️"
             color={C.cyan}
-            modules={["browserScan.js", "nominatim.js", "boundarySearch.js", "api.js (backend fallback)"]}
-            note="browserScan.js là entry point chính: build query → fetch Overpass → normalize → gọi algorithm layer → trả kết quả về store."
+            modules={["browserScan.js", "cityBatchScan.js", "nominatim.js", "boundarySearch.js", "api.js (backend fallback)"]}
+            note="browserScan.js là entry point cho Quét vùng. cityBatchScan.js là orchestrator City Scan: tuần tự qua từng phường, gọi browserScan(), lưu geometry vào cityDB, cập nhật store."
           />
 
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", color: C.muted, fontSize: "0.78rem" }}>
@@ -300,8 +305,8 @@ export default function Sys() {
             title="State Layer"
             icon="🏪"
             color={C.amber}
-            modules={["scanStore.js (Zustand)", "opfs.js (IndexedDB)", "sessionFile.js"]}
-            note="Single source of truth: area, categories, boundary, points, roads, cameras, rawIntersections, intersectionOverrides, sessionFilename, sessionDisplayName, sessions[]. runScan() là orchestrator chính; saveToSystem/loadFromSystem/deleteFromSystem quản lý dự án qua IndexedDB."
+            modules={["scanStore.js (Zustand)", "cityStore.js (Zustand)", "scanFileStore.js (Zustand)", "opfs.js (IndexedDB)", "cityDB.js (IndexedDB)", "wardGeometryDB.js (legacy IDB)", "sessionFile.js"]}
+            note="scanStore: Quét vùng — area, categories, boundary, points, roads, cameras, rawIntersections, intersectionOverrides. cityStore/scanFileStore: City Scan — wardResults, scanFiles[]. cityDB: lưu ward geometry theo key {scanId}_{wardCode}. wardGeometryDB: legacy (ward geometry không có scanId scope)."
           />
 
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", color: C.muted, fontSize: "0.78rem" }}>
@@ -314,8 +319,8 @@ export default function Sys() {
             title="UI Layer (React components)"
             icon="🖥️"
             color={C.pink}
-            modules={["Landing.jsx", "Scanner.jsx", "Sys.jsx", "Header.jsx", "Sidebar.jsx", "MapView.jsx", "ResultsTable.jsx", "Legend.jsx", "AreaSelector.jsx", "BoundarySelector.jsx", "AdminSearch.jsx", "CategoryFilter.jsx", "ScanButton.jsx", "SessionsDrawer.jsx", "ConfirmDialog.jsx", "MapContextMenu.jsx"]}
-            note="MapView dùng maplibregl trực tiếp (không dùng React wrapper). SessionsDrawer quản lý danh sách dự án IndexedDB. Mọi interaction update store → re-render chỉ components liên quan."
+            modules={["Landing.jsx", "Guide.jsx", "Scanner.jsx", "Sys.jsx", "city/CityScans.jsx", "CityMap.jsx", "WardDetail.jsx", "city/ScanResult.jsx", "Header.jsx", "Sidebar.jsx", "MapView.jsx", "RightPanel.jsx", "ResultsTable.jsx", "Legend.jsx", "AreaSelector.jsx", "BoundarySelector.jsx", "AdminSearch.jsx", "CategoryFilter.jsx", "ScanButton.jsx", "SessionsDrawer.jsx", "ConfirmDialog.jsx", "MapContextMenu.jsx", "QueryCategories.jsx", "MaxResultsControl.jsx"]}
+            note="MapView dùng maplibregl trực tiếp (không dùng React wrapper). CityScans.jsx = City Scan Hub: NewScanModal 2-step + scan progress + export. CityMap.jsx = choropleth map (MapLibre). WardDetail.jsx = chi tiết phường từ IDB cache. RightPanel = panel kết quả trong WardDetail."
           />
         </div>
 
@@ -393,8 +398,11 @@ export default function Sys() {
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "10px", overflow: "hidden" }}>
             <div style={{ padding: "0.75rem 1.25rem", borderBottom: `1px solid ${C.border}`, fontSize: "0.72rem", fontWeight: 700, color: C.cyan }}>📂 services/</div>
             <FileRow path="browserScan.js" badge="core" badgeColor={C.cyan} desc="Orchestrator quét browser-side"
-              inputs={["area {lat,lng,radiusM}", "categories[]", "boundary GeoJSON?"]}
-              outputs={["{points[], roads[], meta}"]} />
+              inputs={["area {lat,lng,radiusM}", "categories[]", "boundary GeoJSON?", "options {}"]}
+              outputs={["{points[], roads[], rawIntersections[], rawWays[], rawSignalNodes[], cameras[]}"]} />
+            <FileRow path="cityBatchScan.js" badge="city" badgeColor={C.violet} desc="City Scan orchestrator — tuần tự từng phường"
+              inputs={["wards[] GeoJSON features", "scanId", "onWriteGeometry()", "onProgress()", "signal"]}
+              outputs={["wardCounts[] {code, name, camCount, poiCount, roadKm, areaKm2}"]} />
             <FileRow path="nominatim.js" badge="api" badgeColor={C.green} desc="Nominatim geocoding VN"
               inputs={["query string"]}
               outputs={["AdminResult[] {name,lat,lng,radiusM}"]} />
@@ -435,9 +443,15 @@ export default function Sys() {
             <FileRow path="pointInPolygon.js" badge="pure" badgeColor={C.dim} desc="Ray-casting PIP + geometryBBox"
               inputs={["[lng,lat]", "GeoJSON geometry"]}
               outputs={["boolean", "[minLng,minLat,maxLng,maxLat]"]} />
-            <FileRow path="opfs.js" badge="storage" badgeColor={C.amber} desc="IndexedDB: lưu/đọc/xóa/đổi tên dự án"
+            <FileRow path="opfs.js" badge="storage" badgeColor={C.amber} desc="IndexedDB cam-scan-db: sessions store"
               inputs={["filename, state, displayName"]}
               outputs={["SessionMeta[] / saved filename"]} />
+            <FileRow path="cityDB.js" badge="storage" badgeColor={C.cyan} desc="IndexedDB: city-scan-files + ward-geometry stores"
+              inputs={["scanId, wardCode, geometry"]}
+              outputs={["ScanFile {id,name,wardCounts}, WardGeometry {points,cameras,roads,…}"]} />
+            <FileRow path="wardGeometryDB.js" badge="legacy" badgeColor={C.muted} desc="Legacy IDB: ward geometry không scope scanId"
+              inputs={["wardCode"]}
+              outputs={["WardGeometry (fallback read)"]} />
             <FileRow path="sessionFile.js" badge="io" badgeColor={C.dim} desc="Import/export file JSON ngoài hệ thống"
               inputs={["File object"]}
               outputs={["parsed session state"]} />
@@ -449,16 +463,34 @@ export default function Sys() {
           {/* store + components */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "10px", overflow: "hidden" }}>
             <div style={{ padding: "0.75rem 1.25rem", borderBottom: `1px solid ${C.border}`, fontSize: "0.72rem", fontWeight: 700, color: C.amber }}>📂 store/ & pages/</div>
-            <FileRow path="store/scanStore.js" badge="zustand" badgeColor={C.amber} desc="Global state + runScan + session actions"
+            <FileRow path="store/scanStore.js" badge="zustand" badgeColor={C.amber} desc="Quét vùng: state + runScan + session actions"
               inputs={["user actions"]}
               outputs={["points, roads, cameras, rawIntersections, intersectionOverrides, sessions[], …"]} />
+            <FileRow path="store/cityStore.js" badge="zustand" badgeColor={C.violet} desc="City Scan: active city + wardResults"
+              inputs={["city GeoJSON, wardResults[]"]}
+              outputs={["activeCity, wardResults[], scanning status"]} />
+            <FileRow path="store/scanFileStore.js" badge="zustand" badgeColor={C.cyan} desc="City Scan file list từ IDB"
+              inputs={["scanFiles[] từ cityDB"]}
+              outputs={["scanFiles[], addScanFile(), removeScanFile()"]} />
             <FileRow path="sessions/SessionsDrawer.jsx" badge="ui" badgeColor={C.violet} desc="Quản lý dự án IndexedDB (open/rename/export/delete)"
               inputs={["sessions[] từ store"]}
               outputs={["calls loadFromSystem / renameInSystem / deleteFromSystem / exportFromSystem"]} />
-            <FileRow path="pages/Scanner.jsx" badge="route /map" badgeColor={C.cyan} desc="Layout: Header + Sidebar + Map + Table"
+            <FileRow path="pages/Scanner.jsx" badge="route /scan" badgeColor={C.cyan} desc="Layout: Header + Sidebar + Map + Table"
               inputs={[]}
               outputs={[]} />
-            <FileRow path="pages/Landing.jsx" badge="route /" badgeColor={C.violet} desc="Landing page, stats, CTA"
+            <FileRow path="pages/city/CityScans.jsx" badge="route /city" badgeColor={C.violet} desc="City Scan Hub: quét + xem kết quả + export"
+              inputs={["defaultCityId prop"]}
+              outputs={[]} />
+            <FileRow path="pages/CityMap.jsx" badge="route /city/map" badgeColor={C.cyan} desc="Choropleth map: wards fill/border + hover + click"
+              inputs={["wardCounts[] từ scanFileStore"]}
+              outputs={[]} />
+            <FileRow path="pages/WardDetail.jsx" badge="route /city/details" badgeColor={C.green} desc="Chi tiết phường từ IDB cache + MapView + RightPanel"
+              inputs={["city-details-ward (sessionStorage)", "city-report-scan (sessionStorage)"]}
+              outputs={[]} />
+            <FileRow path="pages/Landing.jsx" badge="route /" badgeColor={C.violet} desc="Landing page, stats, feature cards"
+              inputs={[]}
+              outputs={[]} />
+            <FileRow path="pages/Guide.jsx" badge="route /guide" badgeColor={C.amber} desc="Hướng dẫn sử dụng — left nav tree + content"
               inputs={[]}
               outputs={[]} />
             <FileRow path="pages/Sys.jsx" badge="route /sys" badgeColor={C.pink} desc="Architecture page (this page)"
@@ -610,12 +642,15 @@ export default function Sys() {
             borderRadius: "8px", padding: "0.6rem 1.5rem",
             color: C.dim, cursor: "pointer", fontSize: "0.85rem",
           }}>← Home</button>
+          <button onClick={() => navigate("/guide")} style={{
+            background: `${C.amber}18`, border: `1px solid ${C.amber}44`,
+            borderRadius: "8px", padding: "0.6rem 1.5rem",
+            color: C.amber, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
+          }}>📘 Hướng dẫn</button>
           <button onClick={() => navigate("/scan")} style={{
             background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
-            border: "none", borderRadius: "8px",
-            padding: "0.6rem 1.5rem",
-            color: "#fff", fontWeight: 700, fontSize: "0.85rem",
-            cursor: "pointer",
+            border: "none", borderRadius: "8px", padding: "0.6rem 1.5rem",
+            color: "#fff", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
           }}>Open Scanner →</button>
         </div>
 

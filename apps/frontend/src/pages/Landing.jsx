@@ -147,25 +147,14 @@ export default function Landing() {
           <span style={{ fontWeight: 700, color: C.text, letterSpacing: "0.02em" }}>CamSpot</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <button onClick={() => navigate("/city/map")} style={{
+          <button onClick={() => navigate("/guide")} style={{
             background: "none", border: "none", cursor: "pointer",
-            color: C.dim, fontSize: "0.85rem", padding: "0.3rem 0.6rem",
-          }}>Bản đồ phân bổ</button>
-          <button onClick={() => navigate("/scan")} style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: C.dim, fontSize: "0.85rem", padding: "0.3rem 0.6rem",
-          }}>Quét vùng</button>
+            color: C.dim, fontSize: "0.82rem", padding: "0.3rem 0.6rem",
+          }}>Hướng dẫn</button>
           <button onClick={() => navigate("/sys")} style={{
             background: "none", border: "none", cursor: "pointer",
             color: C.muted, fontSize: "0.82rem", padding: "0.3rem 0.6rem",
-          }}>Kiến trúc</button>
-          <button onClick={() => navigate("/city")} style={{
-            background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
-            border: "none", borderRadius: "8px",
-            padding: "0.45rem 1.2rem",
-            color: "#fff", fontWeight: 700, fontSize: "0.85rem",
-            cursor: "pointer",
-          }}>Quét thành phố</button>
+          }}>Hệ thống</button>
         </div>
       </nav>
 
@@ -196,7 +185,6 @@ export default function Landing() {
 
           {/* CTA buttons */}
           <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-            {/* Primary */}
             <button onClick={() => navigate("/city")} style={{
               background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
               border: "none", borderRadius: "12px",
@@ -210,7 +198,6 @@ export default function Landing() {
               onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 0 40px ${C.cyan}44`; }}
             >🏙️ Quét thành phố</button>
 
-            {/* Secondary */}
             <button onClick={() => navigate("/scan")} style={{
               background: `${C.amber}18`,
               border: `1px solid ${C.amber}55`,
@@ -221,17 +208,6 @@ export default function Landing() {
               onMouseEnter={e => { e.currentTarget.style.borderColor = C.amber; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = `${C.amber}55`; }}
             >🔍 Quét một vùng</button>
-
-            {/* Ghost */}
-            <button onClick={() => navigate("/sys")} style={{
-              background: "none", border: `1px solid ${C.border}`,
-              borderRadius: "12px", padding: "0.9rem 2rem",
-              color: C.dim, fontWeight: 600, fontSize: "1rem", cursor: "pointer",
-              transition: "border-color 0.2s, color 0.2s",
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = C.cyan; e.currentTarget.style.color = C.cyan; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.dim; }}
-            >📐 Kiến trúc</button>
           </div>
 
           {/* Stats */}
@@ -239,7 +215,6 @@ export default function Landing() {
             {[
               { label: "Phường/xã TP.HCM",  val: 168,  suffix: "" },
               { label: "Loại địa điểm",       val: 8,    suffix: "" },
-              { label: "Điểm tối đa / lần",   val: 800,  suffix: "+" },
               { label: "Overpass endpoints",   val: 3,    suffix: "" },
               { label: "Backend cần thiết",    val: 0,    suffix: "" },
             ].map(({ label, val, suffix }) => (
@@ -268,9 +243,7 @@ export default function Landing() {
             badge="Primary"
             color={C.cyan}
             desc="Quét tự động toàn bộ 168 phường/xã TP.HCM. Kết quả lưu vào IndexedDB — sau khi quét xong, click bất kỳ phường nào trên bản đồ để xem chi tiết ngay lập tức, không cần quét lại."
-            bullets={["168 phường/xã, tuần tự mỗi 1.6s", "Geometry lưu IDB ~30MB", "Resume/retry khi gián đoạn", "Export CSV / JSON / PDF"]}
-            cta="🗺 Mở City Scan →"
-            onClick={() => navigate("/city")}
+            bullets={["168 phường/xã, tuần tự mỗi 3s delay", "Geometry lưu IDB ~30MB", "Resume/retry khi gián đoạn", "Export CSV / JSON / PDF"]}
             delay={0}
           />
           <FeatureCard
@@ -280,8 +253,6 @@ export default function Landing() {
             color={C.amber}
             desc="Quét thủ công một khu vực bất kỳ — nhập tọa độ, tìm tên, hoặc vẽ ranh giới. Lưu nhiều dự án, chỉnh sửa camera, xuất file."
             bullets={["Search theo tên hành chính (Nominatim)", "Ranh giới polygon tùy chỉnh", "Lưu/mở nhiều dự án (IndexedDB)", "Export JSON / CSV"]}
-            cta="🔍 Quét một vùng →"
-            onClick={() => navigate("/scan")}
             delay={100}
           />
           <FeatureCard
@@ -289,10 +260,8 @@ export default function Landing() {
             title="Bản đồ phân bổ"
             badge="Choropleth"
             color={C.violet}
-            desc="Bản đồ nhiệt hiển thị mật độ camera, đường, giao lộ theo từng phường. Click vào phường để xem chi tiết không cần quét lại (cần đã chạy City Scan)."
-            bullets={["3 chỉ số: Camera · Đường · Giao lộ", "Toggle mật độ / km² bằng 1 checkbox", "Click phường → Ward Detail tức thì"]}
-            cta="📊 Mở bản đồ →"
-            onClick={() => navigate("/city/map")}
+            desc="Bản đồ nhiệt hiển thị mật độ camera theo từng phường. Click vào phường để xem chi tiết không cần quét lại (cần đã chạy City Scan)."
+            bullets={["Choropleth theo số camera ước tính", "Toggle mật độ / km² bằng 1 checkbox", "Click phường → Ward Detail tức thì"]}
             delay={200}
           />
         </div>
@@ -408,6 +377,10 @@ export default function Landing() {
         fontSize: "0.78rem", color: C.muted, flexWrap: "wrap", gap: "0.5rem",
       }}>
         <span>© 2026 CamSpot · Camera Placement Scanner</span>
+        <div style={{ display: "flex", gap: "1.25rem" }}>
+          <button onClick={() => navigate("/guide")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.78rem", padding: 0 }}>Hướng dẫn</button>
+          <button onClick={() => navigate("/sys")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.78rem", padding: 0 }}>Hệ thống</button>
+        </div>
         <span>Data: OpenStreetMap · dvhcvn · Nominatim · Overpass API</span>
       </div>
     </div>
