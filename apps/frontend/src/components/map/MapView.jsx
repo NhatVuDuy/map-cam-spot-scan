@@ -3,6 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import useScanStore from "../../store/scanStore.js";
 import { CATEGORIES } from "../../utils/categories.js";
+import { BLOCKS } from "../../config/blocks.js";
 import { circleGeoJSON } from "../../utils/geo.js";
 import { bearingBetween } from "../../utils/bearing.js";
 import MapContextMenu from "./MapContextMenu.jsx";
@@ -68,39 +69,22 @@ if (typeof document !== "undefined" && !document.getElementById("cam-popup-style
   document.head.appendChild(s);
 }
 
-// ─── Block type helpers ───────────────────────────────────────────────────────
-
-const BLOCK_META = {
-  quad_signal:    { label: "CAM2.2 — Ngã4 + đèn",       color: "#FBBF24" },
-  quad_nosignal:  { label: "CAM2.3 — Ngã4 không đèn",    color: "#FB923C" },
-  tri_signal:     { label: "CAM2 — Ngã3 + đèn",          color: "#FBBF24" },
-  tri_nosignal:   { label: "CAM2.1 — Ngã3 không đèn",    color: "#FB923C" },
-  alley:          { label: "CAM Hẻm",                     color: "#34D399" },
-  minor:          { label: "Không có cam",                color: "#94a3b8" },
-};
-
-function blockKey(shape, hasSignal) {
-  if (shape === "quad")  return hasSignal ? "quad_signal"  : "quad_nosignal";
-  if (shape === "tri")   return hasSignal ? "tri_signal"   : "tri_nosignal";
-  if (shape === "alley") return "alley";
-  return "minor";
-}
-
 // ─── Intersection popup HTML ──────────────────────────────────────────────────
 
 function buildIntersectionPopupHTML({ props, distFmt }) {
-  const shape     = props.intersectionShape || "minor";
-  const hasSignal = props.hasSignal === true || props.hasSignal === "true";
-  const bk        = BLOCK_META[blockKey(shape, hasSignal)];
+  const blockId   = props.blockId || "B03";
+  const block     = BLOCKS[blockId] || {};
+  const color     = block.color || "#94a3b8";
+  const blockName = block.name || "Giao lộ";
+  const symbol    = block.symbol || "";
 
   return `
     <div style="min-width:220px;font-family:system-ui,sans-serif">
       <div style="padding:0.65rem 0.85rem 0.5rem;border-bottom:1px solid #1e3354">
         <div style="font-size:0.88rem;font-weight:700;color:#f1f5f9;margin-bottom:0.3rem">${props.name || "Giao lộ"}</div>
-        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-          <span style="font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${bk.color}20;border:1px solid ${bk.color}44;color:${bk.color};font-weight:600">${bk.label}</span>
-          ${hasSignal ? `<span style="font-size:0.7rem;padding:2px 8px;border-radius:100px;background:#FBBF2420;border:1px solid #FBBF2444;color:#FBBF24">🚦 Đèn</span>` : ""}
-        </div>
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${color}20;border:1px solid ${color}44;color:${color};font-weight:600">
+          ${symbol} <strong>${blockId}</strong> ${blockName}
+        </span>
       </div>
       <div style="padding:0.55rem 0.85rem;display:flex;flex-direction:column;gap:0.35rem">
         <div style="display:flex;justify-content:space-between;font-size:0.78rem">
@@ -111,24 +95,10 @@ function buildIntersectionPopupHTML({ props, distFmt }) {
           <span style="color:#64748b">Cấp đường</span>
           <span style="color:#94a3b8">${props.roadClass ?? "—"}</span>
         </div>
-        <div style="font-size:0.7rem;color:#64748b;margin-top:0.15rem">Loại giao lộ</div>
-        <select data-ix-shape="${props.id}"
-          style="width:100%;padding:4px 6px;background:#0f1f35;border:1px solid #1e3354;border-radius:5px;color:#e2e8f0;font-size:0.75rem;cursor:pointer">
-          <option value="quad"  ${shape === "quad"  ? "selected" : ""}>■ Ngã tư đường lớn</option>
-          <option value="tri"   ${shape === "tri"   ? "selected" : ""}>▲ Ngã ba đường lớn</option>
-          <option value="alley" ${shape === "alley" ? "selected" : ""}>▬ Đầu hẻm</option>
-          <option value="minor" ${shape === "minor" ? "selected" : ""}>· Giao cắt nhỏ</option>
-        </select>
-        ${shape !== "alley" && shape !== "minor" ? `
-        <button data-ix-signal="${props.id}" data-ix-signal-cur="${hasSignal}"
-          style="width:100%;padding:5px 0;margin-top:2px;background:${hasSignal ? "#FBBF2418" : "#1e3354"};border:1px solid ${hasSignal ? "#FBBF2444" : "#334155"};border-radius:6px;color:${hasSignal ? "#FBBF24" : "#94a3b8"};font-size:0.75rem;font-weight:600;cursor:pointer">
-          ${hasSignal ? "🚦 Có đèn — Bấm để tắt" : "⭕ Không đèn — Bấm để bật"}
-        </button>` : ""}
-        ${shape === "alley" ? `
-        <button data-ix-aim="${props.id}"
-          style="width:100%;padding:5px 0;margin-top:2px;background:#34D39918;border:1px solid #34D39944;border-radius:6px;color:#34D399;font-size:0.75rem;font-weight:600;cursor:pointer">
-          🎯 Đặt hướng cam — Bấm rồi click vào hẻm trên bản đồ
-        </button>` : ""}
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem">
+          <span style="color:#64748b">Lat / Lng</span>
+          <code style="color:#94a3b8;font-size:0.72rem">${Number(props.lat||0).toFixed(6)}, ${Number(props.lon||props.lng||0).toFixed(6)}</code>
+        </div>
       </div>
       <div style="padding:0.4rem 0.85rem 0.65rem">
         <button data-delete-id="${props.id}"
@@ -143,12 +113,15 @@ function buildIntersectionPopupHTML({ props, distFmt }) {
 // ─── Regular POI popup HTML ───────────────────────────────────────────────────
 
 function buildPopupHTML({ props, cat, distFmt, score }) {
-  const lat   = props.lat  != null ? Number(props.lat).toFixed(6) : "—";
-  const lon   = props.lon  != null ? Number(props.lon).toFixed(6)
-              : props.lng  != null ? Number(props.lng).toFixed(6) : "—";
-  const name  = props.name || props.id || "—";
-  const color = cat?.color || "#94a3b8";
-  const label = cat?.label || props.category || "—";
+  const lat     = props.lat  != null ? Number(props.lat).toFixed(6) : "—";
+  const lon     = props.lon  != null ? Number(props.lon).toFixed(6)
+                : props.lng  != null ? Number(props.lng).toFixed(6) : "—";
+  const name    = props.name || props.id || "—";
+  const blockId = props.blockId;
+  const block   = blockId ? BLOCKS[blockId] : null;
+  const color   = block?.color || cat?.color || "#94a3b8";
+  const symbol  = block?.symbol || "";
+  const label   = block ? `${symbol} ${blockId} ${block.name}` : (cat?.label || props.category || "—");
 
   return `
     <div style="min-width:200px;font-family:system-ui,sans-serif">
@@ -277,6 +250,13 @@ function makeIxImageData(shape, size = 40) {
     ctx.fill();
     ctx.stroke();
 
+  } else if (shape === "alley_minor") {
+    // Small cross for minor alley intersections
+    const lw = s * 0.14;
+    ctx.fillStyle = `#74C0FCcc`;
+    ctx.fillRect((s - lw) / 2, s * 0.1, lw, s * 0.8);
+    ctx.fillRect(s * 0.1, (s - lw) / 2, s * 0.8, lw);
+
   } else if (shape === "alley") {
     // Rectangle drawn in the TOP HALF of the canvas only.
     // The canvas centre (y = s/2) acts as the anchor — placed at the intersection node.
@@ -312,7 +292,7 @@ function makeIxImageData(shape, size = 40) {
 }
 
 function loadIxIcons(map) {
-  for (const shape of ["quad", "tri", "alley", "minor"]) {
+  for (const shape of ["quad", "tri", "alley", "alley_minor", "minor"]) {
     try {
       const img = makeIxImageData(shape);
       // MapLibre expects Uint8Array; getImageData returns Uint8ClampedArray — convert.
@@ -796,7 +776,8 @@ function MapViewInner() {
           name: p.name,
           distanceM: p.distanceM,
           score: p.score ?? 0,
-          color: CATEGORIES[p.category]?.color || "#888888",
+          blockId: p.blockId || null,
+          color: (p.blockId && BLOCKS[p.blockId]?.color) || CATEGORIES[p.category]?.color || "#888888",
           roadClass: p.roadClass ?? null,
           // Intersection-specific
           intersectionShape: p.intersectionShape ?? null,
@@ -886,7 +867,7 @@ function MapViewInner() {
       activeIxRef.current = null;
       popupRef.current = new maplibregl.Popup({ offset: 14, closeButton: true, className: "cam-popup" })
         .setLngLat([selectedPoint.lng, selectedPoint.lat])
-        .setHTML(buildPopupHTML({ props: { ...selectedPoint, lat: selectedPoint.lat, lon: selectedPoint.lng }, cat, distFmt, score: selectedPoint.score }))
+        .setHTML(buildPopupHTML({ props: { ...selectedPoint, lat: selectedPoint.lat, lon: selectedPoint.lng, blockId: selectedPoint.blockId }, cat, distFmt, score: selectedPoint.score }))
         .addTo(map);
     }
   }, [mapReady, selectedPoint]);

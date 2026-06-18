@@ -114,26 +114,32 @@ function QueryCategories() {
 }
 
 /* ─── max results control ─────────────────────────────────────────────────── */
-const PRESETS = [200, 500, 1000, 2000];
+const PRESETS = [200, 500, 1000, 2000, "all"];
 
 function MaxResultsControl() {
   const { maxResults, setMaxResults } = useScanner();
+  const displayVal = maxResults === Infinity ? "∞" : maxResults.toLocaleString();
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.3rem" }}>
         <SectionLabel>Giới hạn kết quả</SectionLabel>
-        <span style={{ fontSize: "0.68rem", color: C.cyan, fontWeight: 700 }}>{maxResults.toLocaleString()}</span>
+        <span style={{ fontSize: "0.68rem", color: C.cyan, fontWeight: 700 }}>{displayVal}</span>
       </div>
       <div style={{ display: "flex", gap: "0.25rem" }}>
-        {PRESETS.map(v => (
-          <button key={v} onClick={() => setMaxResults(v)} style={{
-            flex: 1, padding: "3px 0", fontSize: "0.62rem",
-            background: maxResults === v ? `${C.cyan}22` : "none",
-            border: `1px solid ${maxResults === v ? C.cyan : C.border}`,
-            color: maxResults === v ? C.cyan : C.muted,
-            borderRadius: "4px", cursor: "pointer",
-          }}>{v >= 1000 ? `${v/1000}k` : v}</button>
-        ))}
+        {PRESETS.map(v => {
+          const isAll     = v === "all";
+          const active    = isAll ? maxResults === Infinity : maxResults === v;
+          const label     = isAll ? "All" : v >= 1000 ? `${v/1000}k` : v;
+          return (
+            <button key={v} onClick={() => setMaxResults(isAll ? "all" : v)} style={{
+              flex: 1, padding: "3px 0", fontSize: "0.62rem",
+              background: active ? `${C.cyan}22` : "none",
+              border: `1px solid ${active ? C.cyan : C.border}`,
+              color: active ? C.cyan : C.muted,
+              borderRadius: "4px", cursor: "pointer",
+            }}>{label}</button>
+          );
+        })}
       </div>
     </div>
   );

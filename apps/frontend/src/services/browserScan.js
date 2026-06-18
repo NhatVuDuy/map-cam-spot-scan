@@ -265,10 +265,7 @@ export async function browserScan({ area, blocks, categories, boundary = null, o
     highway: w.highway,
   }));
 
-  onProgress?.("Tính toán vị trí camera...");
-  const cameras = (ways.length > 0 && blocks.some(b => ROAD_BLOCKS.has(b)))
-    ? planAllCameras({ intersections: detectedIntersections, ways: rawRoads, signalNodes, center, radiusM: useBoundary ? undefined : radiusM })
-    : [];
+  const cameras = []; // planAllCameras disabled — kept in cameraPlacement.js for future use
 
   const roads = includeRoads
     ? rawRoads.map(w => ({ id: `osm-way-${w.id}`, geometry: w.geometry, highway: w.highway }))

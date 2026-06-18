@@ -1,26 +1,32 @@
-/**
- * PointLayer — manages the MapLibre GL circle layer for POI points.
- * This is a headless component that manages map layers as a side effect.
- * It is used internally by MapView.jsx.
- */
 import { useEffect } from "react";
+import { BLOCKS } from "../../config/blocks.js";
 import { CATEGORIES } from "../../utils/categories.js";
 
-export function usePointLayer(map, points, filter) {
+function pointColor(p) {
+  if (p.blockId && BLOCKS[p.blockId]) return BLOCKS[p.blockId].color;
+  return CATEGORIES[p.category]?.color || "#888";
+}
+
+export function usePointLayer(map, points, filter, hiddenBlocks = []) {
   useEffect(() => {
     if (!map) return;
 
+    const visible = hiddenBlocks.length > 0
+      ? points.filter(p => !hiddenBlocks.includes(p.blockId || p.category))
+      : points;
+
     const fc = {
       type: "FeatureCollection",
-      features: points.map((p) => ({
+      features: visible.map((p) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         properties: {
           id: p.id,
           category: p.category,
+          blockId: p.blockId || p.category,
           name: p.name || "",
           distanceM: p.distanceM || 0,
-          color: CATEGORIES[p.category]?.color || "#888",
+          color: pointColor(p),
         },
       })),
     };
@@ -28,7 +34,7 @@ export function usePointLayer(map, points, filter) {
     if (map.getSource("points")) {
       map.getSource("points").setData(fc);
     }
-  }, [map, points]);
+  }, [map, points, hiddenBlocks]);
 
   // Update filter opacity
   useEffect(() => {
@@ -42,6 +48,5 @@ export function usePointLayer(map, points, filter) {
 }
 
 export default function PointLayer() {
-  // Headless — rendering handled by MapView
   return null;
 }

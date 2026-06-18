@@ -18,6 +18,7 @@ export function useScanner() {
     progress: store.progress,
     error: store.error,
     filter: store.filter,
+    hiddenBlocks: store.hiddenBlocks,
     hoveredPoint: store.hoveredPoint,
     selectedPoint: store.selectedPoint,
     showCameras: store.showCameras,
@@ -28,6 +29,7 @@ export function useScanner() {
     // Actions
     setSource: store.setSource,
     setShowCameras: store.setShowCameras,
+    toggleBlockVisibility: store.toggleBlockVisibility,
     setArea: store.setArea,
     setBlocks: store.setBlocks,
     setCategories: store.setCategories,
