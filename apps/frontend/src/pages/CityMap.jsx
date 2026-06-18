@@ -303,7 +303,7 @@ export default function CityMap() {
         <div style={{
           position: "absolute", bottom: "2rem", left: "1rem", zIndex: 10,
           background: `${C.bg}ee`, border: `1px solid ${C.border}`, borderRadius: "10px",
-          padding: "0.7rem 1rem", minWidth: "180px",
+          padding: "0.7rem 1rem", minWidth: "200px",
         }}>
           <div style={{ fontSize: "0.6rem", fontWeight: 800, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
             📹 Camera ước tính
@@ -314,9 +314,22 @@ export default function CityMap() {
               <div key={i} style={{ flex: 1, background: c }} />
             ))}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: C.muted }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: C.muted, marginBottom: "0.6rem" }}>
             <span>Ít</span><span>TB</span><span>Nhiều</span>
           </div>
+
+          {/* Density toggle — stays with legend */}
+          <label style={{
+            display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "0.7rem",
+            color: densityMode ? C.violet : C.dim, fontWeight: densityMode ? 700 : 400,
+            background: densityMode ? `${C.violet}18` : "transparent",
+            border: `1px solid ${densityMode ? C.violet + "55" : C.border}`,
+            borderRadius: "5px", padding: "4px 8px",
+          }}>
+            <input type="checkbox" checked={densityMode} onChange={e => setDensityMode(e.target.checked)}
+              style={{ accentColor: C.violet, cursor: "pointer", width: "12px", height: "12px" }} />
+            Mật độ /km²
+          </label>
 
           {/* Hover tooltip */}
           {hoveredWard && hoveredWard.hasData && (
@@ -367,21 +380,6 @@ export default function CityMap() {
             }}>Đến Quét thành phố →</button>
           </div>
         )}
-        {/* Density toggle — feature action, top-right of map area */}
-        <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem", zIndex: 10 }}>
-          <label style={{
-            display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "0.7rem",
-            color: densityMode ? C.violet : C.dim, fontWeight: densityMode ? 700 : 400,
-            background: densityMode ? `${C.violet}22` : `${C.bg}cc`,
-            border: `1px solid ${densityMode ? C.violet + "55" : C.border}`,
-            borderRadius: "6px", padding: "5px 10px",
-            backdropFilter: "blur(8px)",
-          }}>
-            <input type="checkbox" checked={densityMode} onChange={e => setDensityMode(e.target.checked)}
-              style={{ accentColor: C.violet, cursor: "pointer", width: "12px", height: "12px" }} />
-            Mật độ /km²
-          </label>
-        </div>
       </div>
 
       <style>{`

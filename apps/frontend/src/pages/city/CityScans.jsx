@@ -517,6 +517,7 @@ export default function CityScans({ defaultCityId }) {
   const cityId = city?.id || defaultCityId || "hcm";
   const [selectedFile, setSelectedFile] = useState(null);
   const [showNewScanModal, setShowNewScanModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const runSinceRef = useRef(0);
 
   const {
@@ -607,10 +608,18 @@ export default function CityScans({ defaultCityId }) {
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
         {/* ── Left sidebar: file tree + action bar ─────────────────── */}
+        {sidebarOpen && (
         <div style={{
           width: "260px", flexShrink: 0, borderRight: `1px solid ${C.border}`,
           display: "flex", flexDirection: "column", overflow: "hidden", background: "#080f1e",
+          position: "relative",
         }}>
+          {/* Collapse button */}
+          <button onClick={() => setSidebarOpen(false)} title="Ẩn sidebar" style={{
+            position: "absolute", top: "0.5rem", right: "0.4rem", zIndex: 10,
+            background: "none", border: "none", color: C.muted, cursor: "pointer",
+            fontSize: "0.85rem", lineHeight: 1, padding: "2px 4px",
+          }}>‹</button>
           <FileTree
             scanFiles={scanFiles}
             folders={folders}
@@ -629,6 +638,17 @@ export default function CityScans({ defaultCityId }) {
             onStop={stopScan}
           />
         </div>
+        )}
+
+        {/* Show sidebar button when collapsed */}
+        {!sidebarOpen && (
+          <button onClick={() => setSidebarOpen(true)} title="Hiện sidebar" style={{
+            width: "22px", flexShrink: 0, background: "#080f1e",
+            borderRight: `1px solid ${C.border}`, border: "none",
+            cursor: "pointer", color: C.muted, fontSize: "0.85rem",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>›</button>
+        )}
 
         {/* ── Right: scan progress or file detail ──────────────────── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
