@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import MapView from "../components/map/MapView.jsx";
 import RightPanel from "../components/layout/RightPanel.jsx";
 import useScanStore from "../store/scanStore.js";
-import useScanFileStore from "../store/scanFileStore.js";
 import useCityStore from "../store/cityStore.js";
+import useScanFileStore from "../store/scanFileStore.js";
 import { readWardGeometry } from "../utils/wardGeometryDB.js";
 
 const C = {
@@ -14,7 +14,7 @@ const C = {
 };
 
 export default function WardDetail() {
-  const code     = sessionStorage.getItem("city-details-ward") || "";
+  const code    = sessionStorage.getItem("city-details-ward") || "";
   const navigate  = useNavigate();
   const [status, setStatus] = useState("loading"); // loading | loaded | noscan | nogeom
   const [wardName, setWardName] = useState("");
@@ -23,8 +23,6 @@ export default function WardDetail() {
 
   const loadFromCache = useScanStore(s => s.loadFromCache);
   const setBoundary   = useScanStore(s => s.setBoundary);
-  const cameras       = useScanStore(s => s.cameras);
-  const wardResults   = useCityStore(s => s.wardResults);
   const initFromCache = useCityStore(s => s.initFromCache);
 
   useEffect(() => {
@@ -33,16 +31,14 @@ export default function WardDetail() {
     async function load() {
       setStatus("loading");
 
-      // Find ward metadata — try new scan file store first, fall back to legacy cityStore
-      const activeScanId = sessionStorage.getItem("city-report-scan");
+      // Try new scan file store first
       const { scanFiles } = useScanFileStore.getState();
-      const activeFile = activeScanId ? scanFiles.find(f => f.id === activeScanId) : null;
-      const newWards = activeFile?.wardCounts || null;
-      const legacyWards = useCityStore.getState().wardResults;
-      const wards = newWards || legacyWards;
+      const activeScanId = sessionStorage.getItem("city-report-scan");
+      const activeFile = activeScanId ? scanFiles.find(f => f.id === activeScanId) : scanFiles[0];
+      const wards = activeFile?.wardCounts || useCityStore.getState().wardResults || [];
       const wardStats = wards?.find(w => w.code === code);
 
-      if (!wardStats && !wards) {
+      if (!wardStats && (!wards || wards.length === 0)) {
         // No city scan at all
         setStatus("noscan");
         return;
@@ -109,7 +105,7 @@ export default function WardDetail() {
         <div style={{ fontSize: "2rem" }}>🔍</div>
         <div style={{ fontWeight: 700 }}>Phường <strong style={{ color: C.cyan }}>{cachedStats?.name || code}</strong> chưa có geometry cache</div>
         <div style={{ fontSize: "0.8rem", color: C.muted }}>
-          {cachedStats ? `Đã có thống kê: ${Object.values(cachedStats.byCat || {}).reduce((a,b)=>a+b,0)} địa điểm` : ""}
+          {cachedStats ? `Đã có thống kê: ${Object.values(cachedStats.byCat || {}).reduce((a,b)=>a+b,0)} điểm` : ""}
         </div>
         <div style={{ fontSize: "0.75rem", color: C.muted, maxWidth: "400px", textAlign: "center" }}>
           Geometry được lưu khi quét từ v2.8.0+. Nếu đã quét trước đó, vui lòng quét lại toàn bộ TP.HCM.

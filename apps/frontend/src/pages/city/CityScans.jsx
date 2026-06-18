@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import AppLayout, { NavBtn, BackBtn } from "../../components/layout/AppLayout.jsx";
 import ScanProgress from "../../components/city/ScanProgress.jsx";
 import { getCity, seedBuiltInCities } from "../../utils/cityDB.js";
@@ -387,8 +387,7 @@ function SidebarControls({ isRunning, onNewScan, onStop }) {
 
 /* ── Main page ───────────────────────────────────────────────────── */
 export default function CityScans({ defaultCityId }) {
-  const params = useParams();
-  const cityId = params.cityId || defaultCityId || "hcm";
+  const cityId = defaultCityId || "hcm";
   const navigate   = useNavigate();
   const [city, setCity]             = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
