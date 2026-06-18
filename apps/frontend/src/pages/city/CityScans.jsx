@@ -514,6 +514,7 @@ export default function CityScans({ defaultCityId }) {
   const navigate   = useNavigate();
   const [city, setCity]             = useState(null);
   const [cities, setCities]         = useState([]);
+  const cityId = city?.id || defaultCityId || "hcm";
   const [selectedFile, setSelectedFile] = useState(null);
   const [showNewScanModal, setShowNewScanModal] = useState(false);
   const runSinceRef = useRef(0);
