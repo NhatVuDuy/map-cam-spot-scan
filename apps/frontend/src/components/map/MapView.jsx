@@ -76,6 +76,7 @@ const PICKER_GROUPS = [
   { label: "Địa điểm & Công trình", keys: ["B08","B09","B10","B11","B12","B13"] },
 ];
 
+// Used inside MapContextMenu (direct-apply on click)
 function buildBlockPickerHTML(pointId, currentBlockId) {
   let html = `<div data-block-picker-for="${pointId}" style="max-height:130px;overflow-y:auto;border:1px solid #1e3354;border-radius:5px;font-size:0.68rem;">`;
   for (const g of PICKER_GROUPS) {
@@ -95,6 +96,30 @@ function buildBlockPickerHTML(pointId, currentBlockId) {
   html += `</div>`;
   return html;
 }
+
+// Used inside point popup (pending-mode: click to highlight only, save to commit)
+function buildBlockPickerPendingHTML(pointId, currentBlockId) {
+  let html = `<div data-pending-picker-for="${pointId}" style="max-height:150px;overflow-y:auto;border:1px solid #1e3354;border-radius:5px 5px 0 0;font-size:0.68rem;">`;
+  for (const g of PICKER_GROUPS) {
+    html += `<div style="padding:2px 8px;background:#060d1a;color:#475569;font-size:0.57rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid #1e3354;position:sticky;top:0;">${g.label}</div>`;
+    for (const k of g.keys) {
+      const b = BLOCKS[k];
+      if (!b) continue;
+      const active = k === currentBlockId;
+      const shape = b.shape === "square" ? "■" : "●";
+      html += `<div data-pending-block="${k}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;cursor:pointer;background:${active ? b.color + "20" : "transparent"};border-left:2px solid ${active ? b.color : "transparent"};">
+        <span style="color:${b.color};font-size:0.62rem;flex-shrink:0">${shape}</span>
+        <span style="color:${b.color};font-weight:700;font-size:0.6rem;flex-shrink:0;min-width:28px">${k}</span>
+        <span style="color:${active ? "#e2e8f0" : "#64748b"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.name}</span>
+      </div>`;
+    }
+  }
+  html += `</div>`;
+  return html;
+}
+
+// Module-level state for pending block edit
+let _pendingBlockId = null;
 
 // ─── Intersection popup HTML ──────────────────────────────────────────────────
 
@@ -154,10 +179,12 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
     <div style="min-width:200px;font-family:system-ui,sans-serif">
       <div style="padding:0.65rem 0.85rem 0.5rem;border-bottom:1px solid #1e3354">
         <div style="font-size:0.88rem;font-weight:700;color:#f1f5f9;margin-bottom:0.25rem;line-height:1.3">${name}</div>
-        <span style="display:inline-flex;align-items:center;gap:5px;font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${color}20;border:1px solid ${color}44;color:${color};font-weight:600">
-          <span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block"></span>
-          ${label}
-        </span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="display:inline-flex;align-items:center;gap:5px;font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${color}20;border:1px solid ${color}44;color:${color};font-weight:600">
+            ${blockId ? blockId : (cat?.label || props.category || "—")}${block ? ` ${block.name}` : ""}
+          </span>
+          <button data-edit-block="${props.id}" style="flex-shrink:0;padding:2px 7px;background:none;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:0.65rem;cursor:pointer;line-height:1.4">✎ Sửa</button>
+        </div>
       </div>
       <div style="padding:0.55rem 0.85rem;display:flex;flex-direction:column;gap:0.3rem">
         <div style="display:flex;justify-content:space-between;font-size:0.78rem">
@@ -167,15 +194,6 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
         <div style="display:flex;justify-content:space-between;font-size:0.78rem">
           <span style="color:#64748b">Lat / Lng</span>
           <code style="color:#94a3b8;font-size:0.72rem">${lat}, ${lon}</code>
-        </div>
-        ${score != null ? `<div style="display:flex;justify-content:space-between;font-size:0.78rem"><span style="color:#64748b">Điểm ưu tiên</span><strong style="color:#FBBF24">★ ${score}</strong></div>` : ""}
-      </div>
-      <div style="padding:0.3rem 0.85rem 0rem">
-        <button data-toggle-picker="${props.id}" style="width:100%;padding:4px 8px;background:#1e293b;border:1px solid #334155;border-radius:5px;color:#94a3b8;font-size:0.7rem;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;">
-          <span>Đổi loại…</span><span style="font-size:0.6rem">▾</span>
-        </button>
-        <div id="picker-${props.id}" style="display:none;margin-top:4px">
-          ${buildBlockPickerHTML(props.id, props.blockId || '')}
         </div>
       </div>
       <div style="padding:0.4rem 0.85rem 0.65rem">
@@ -377,6 +395,7 @@ function MapViewInner() {
   const markerRef     = useRef(null);
   const popupRef      = useRef(null);  // active popup (POI or intersection)
   const activeIxRef   = useRef(null);  // { id, lngLat } of open intersection popup
+  const popupStateRef = useRef(null);  // { props, cat, distFmt } for rebuilding popup
   const [mapReady, setMapReady] = useState(false);
 
   const area          = useScanStore((s) => s.area);
@@ -409,27 +428,100 @@ function MapViewInner() {
         return;
       }
 
-      // Toggle block picker visibility
-      const toggleBtn = e.target.closest("[data-toggle-picker]");
-      if (toggleBtn) {
-        const id = toggleBtn.getAttribute("data-toggle-picker");
-        const picker = document.getElementById(`picker-${id}`);
-        if (picker) {
-          const open = picker.style.display !== "none";
-          picker.style.display = open ? "none" : "block";
-          const arrow = toggleBtn.querySelector("span:last-child");
-          if (arrow) arrow.textContent = open ? "▾" : "▴";
-        }
-        return;
-      }
-
-      // Block picker item click
+      // Block picker item click (MapContextMenu — direct apply)
       const pickBtn = e.target.closest("[data-pick-block]");
       if (pickBtn) {
         const newBlockId = pickBtn.getAttribute("data-pick-block");
         const container  = pickBtn.closest("[data-block-picker-for]");
         const id = container?.getAttribute("data-block-picker-for");
         if (id) useScanStore.getState().updatePointBlock(id, newBlockId);
+        return;
+      }
+
+      // Open block-edit mode inside popup
+      const editBtn = e.target.closest("[data-edit-block]");
+      if (editBtn) {
+        const id = editBtn.getAttribute("data-edit-block");
+        const pt = useScanStore.getState().points.find(p => p.id === id);
+        _pendingBlockId = pt?.blockId || null;
+        if (popupRef.current) {
+          const b = _pendingBlockId ? BLOCKS[_pendingBlockId] : null;
+          popupRef.current.setHTML(`
+            <div style="min-width:220px;font-family:system-ui,sans-serif">
+              <div style="padding:0.5rem 0.85rem;border-bottom:1px solid #1e3354;font-size:0.75rem;color:#94a3b8;display:flex;align-items:center;gap:6px">
+                <span style="color:${b?.color||'#94a3b8'};font-weight:700">${_pendingBlockId || '—'}</span>
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b?.name||''}</span>
+                <span style="font-size:0.62rem">Chọn loại mới</span>
+              </div>
+              ${buildBlockPickerPendingHTML(id, _pendingBlockId || '')}
+              <div style="display:flex;gap:6px;padding:0.4rem 0.85rem 0.65rem">
+                <button data-save-block="${id}" style="flex:1;padding:5px;background:#3B82F622;border:1px solid #3B82F655;border-radius:5px;color:#93c5fd;font-size:0.75rem;font-weight:600;cursor:pointer">Lưu</button>
+                <button data-cancel-block="${id}" style="padding:5px 12px;background:none;border:1px solid #1a2e4a;border-radius:5px;color:#64748b;font-size:0.75rem;cursor:pointer">Hủy</button>
+              </div>
+            </div>
+          `);
+        }
+        return;
+      }
+
+      // Pending picker item click — highlight only, no immediate save
+      const pendingBtn = e.target.closest("[data-pending-block]");
+      if (pendingBtn) {
+        _pendingBlockId = pendingBtn.getAttribute("data-pending-block");
+        const container = pendingBtn.closest("[data-pending-picker-for]");
+        if (container) {
+          container.querySelectorAll("[data-pending-block]").forEach(el => {
+            const k = el.getAttribute("data-pending-block");
+            const b = BLOCKS[k];
+            el.style.background = k === _pendingBlockId ? `${b.color}20` : "transparent";
+            el.style.borderLeftColor = k === _pendingBlockId ? b.color : "transparent";
+            el.querySelector("span:last-child").style.color = k === _pendingBlockId ? "#e2e8f0" : "#64748b";
+          });
+          // Update the preview header
+          const header = container.previousElementSibling;
+          if (header) {
+            const b = BLOCKS[_pendingBlockId];
+            const spans = header.querySelectorAll("span");
+            if (spans[0]) { spans[0].style.color = b?.color || "#94a3b8"; spans[0].textContent = _pendingBlockId || "—"; }
+            if (spans[1]) spans[1].textContent = b?.name || "";
+          }
+        }
+        return;
+      }
+
+      // Save block edit
+      const saveBtn = e.target.closest("[data-save-block]");
+      if (saveBtn) {
+        const id = saveBtn.getAttribute("data-save-block");
+        if (id && _pendingBlockId) {
+          useScanStore.getState().updatePointBlock(id, _pendingBlockId);
+        }
+        // Rebuild normal popup view
+        if (popupRef.current && popupStateRef.current) {
+          const pt = useScanStore.getState().points.find(p => p.id === id);
+          if (pt) {
+            const { distFmt } = popupStateRef.current;
+            const cat = CATEGORIES[pt.blockId || pt.category];
+            popupRef.current.setHTML(buildPopupHTML({ props: { ...pt, lat: pt.lat, lon: pt.lng }, cat, distFmt, score: pt.score }));
+          }
+        }
+        _pendingBlockId = null;
+        return;
+      }
+
+      // Cancel block edit — restore normal popup view
+      const cancelBtn = e.target.closest("[data-cancel-block]");
+      if (cancelBtn) {
+        const id = cancelBtn.getAttribute("data-cancel-block");
+        _pendingBlockId = null;
+        if (popupRef.current && popupStateRef.current) {
+          const pt = useScanStore.getState().points.find(p => p.id === id);
+          if (pt) {
+            const { distFmt } = popupStateRef.current;
+            const cat = CATEGORIES[pt.blockId || pt.category];
+            popupRef.current.setHTML(buildPopupHTML({ props: { ...pt, lat: pt.lat, lon: pt.lng }, cat, distFmt, score: pt.score }));
+          }
+        }
         return;
       }
 
@@ -659,6 +751,8 @@ function MapViewInner() {
         const distFmt = props.distanceM >= 1000
           ? `${(props.distanceM / 1000).toFixed(2)} km`
           : `${props.distanceM} m`;
+        popupStateRef.current = { distFmt };
+        _pendingBlockId = null;
         if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
         activeIxRef.current = null;
         popupRef.current = new maplibregl.Popup({ offset: 12, className: "cam-popup" })
@@ -856,6 +950,8 @@ function MapViewInner() {
       const distFmt = selectedPoint.distanceM >= 1000
         ? `${(selectedPoint.distanceM / 1000).toFixed(2)} km`
         : `${selectedPoint.distanceM} m`;
+      popupStateRef.current = { distFmt };
+      _pendingBlockId = null;
       if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
       activeIxRef.current = null;
       popupRef.current = new maplibregl.Popup({ offset: 14, closeButton: true, className: "cam-popup" })
