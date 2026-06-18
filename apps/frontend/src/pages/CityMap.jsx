@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import AppLayout, { BackBtn, NavBtn } from "../components/layout/AppLayout.jsx";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { aggregateWards } from "../services/cityBatchScan.js";
@@ -288,48 +289,14 @@ export default function CityMap() {
   }, [metricKey, loaded]);
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "Inter,system-ui,sans-serif" }}>
-
-      {/* Nav */}
-      <nav style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 1rem", height: "48px", flexShrink: 0,
-        background: "#0b1425", borderBottom: `1px solid ${C.border}`,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <span onClick={() => navigate("/")} style={{ cursor: "pointer", fontSize: "1rem" }}>📹</span>
-          <span style={{ fontWeight: 700, fontSize: "0.85rem", color: C.text }}>Bản đồ Camera TP.HCM</span>
-          {hasData && (
-            <span style={{ fontSize: "0.65rem", color: C.dim, background: C.card, border: `1px solid ${C.border}`, borderRadius: "4px", padding: "2px 7px" }}>
-              {agg.completed}/168 phường · {Math.round(agg.camCount).toLocaleString("vi-VN")} cam
-            </span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "0.7rem",
-            color: densityMode ? C.violet : C.dim, fontWeight: densityMode ? 700 : 400,
-            background: densityMode ? `${C.violet}18` : "transparent",
-            border: `1px solid ${densityMode ? C.violet + "55" : C.border}`,
-            borderRadius: "6px", padding: "4px 9px",
-          }}>
-            <input type="checkbox" checked={densityMode} onChange={e => setDensityMode(e.target.checked)}
-              style={{ accentColor: C.violet, cursor: "pointer", width: "12px", height: "12px" }} />
-            Mật độ /km²
-          </label>
-          <div style={{ width: "1px", height: "20px", background: C.border }} />
-          <button onClick={() => navigate("/city/report")} style={{
-            fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
-            background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`, color: C.cyan,
-          }}>📊 Thống kê</button>
-          <button onClick={() => navigate("/city")} style={{
-            fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
-            background: `${C.violet}18`, border: `1px solid ${C.violet}44`, color: C.violet,
-          }}>← Quét thành phố</button>
-        </div>
-      </nav>
-
-      {/* Map */}
-      <div style={{ flex: 1, position: "relative" }}>
+    <AppLayout
+      featureName="Bản đồ phân bổ"
+      backButton={<BackBtn onClick={() => navigate("/city")}>← City Scan</BackBtn>}
+      navButtons={<NavBtn color={C.cyan} onClick={() => navigate("/city/report")}>📊 Thống kê</NavBtn>}
+      style={{ height: "100dvh" }}
+    >
+      {/* Map — fills remaining space */}
+      <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
         <div ref={mapRef} style={{ width: "100%", height: "100%", minHeight: "calc(100vh - 48px)" }} />
 
         {/* Legend + hover info */}
@@ -400,6 +367,21 @@ export default function CityMap() {
             }}>Đến Quét thành phố →</button>
           </div>
         )}
+        {/* Density toggle — feature action, top-right of map area */}
+        <div style={{ position: "absolute", top: "0.75rem", right: "0.75rem", zIndex: 10 }}>
+          <label style={{
+            display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "0.7rem",
+            color: densityMode ? C.violet : C.dim, fontWeight: densityMode ? 700 : 400,
+            background: densityMode ? `${C.violet}22` : `${C.bg}cc`,
+            border: `1px solid ${densityMode ? C.violet + "55" : C.border}`,
+            borderRadius: "6px", padding: "5px 10px",
+            backdropFilter: "blur(8px)",
+          }}>
+            <input type="checkbox" checked={densityMode} onChange={e => setDensityMode(e.target.checked)}
+              style={{ accentColor: C.violet, cursor: "pointer", width: "12px", height: "12px" }} />
+            Mật độ /km²
+          </label>
+        </div>
       </div>
 
       <style>{`
@@ -411,6 +393,6 @@ export default function CityMap() {
         .city-popup .maplibregl-popup-close-button { color: #64748b; font-size: 1.1rem; padding: 4px 8px; }
         .city-popup .maplibregl-popup-tip { border-top-color: #1e3354 !important; }
       `}</style>
-    </div>
+    </AppLayout>
   );
 }

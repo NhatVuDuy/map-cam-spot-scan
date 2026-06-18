@@ -188,15 +188,18 @@ export default function ScanResult() {
     <AppLayout
       featureName={scanFile.name}
       backButton={<BackBtn onClick={() => navigate("/city")}>← {city?.name || cityId}</BackBtn>}
-      navButtons={
-        <>
-          <NavBtn color={C.green} onClick={() => navigate("/city/map")}>🗺 Bản đồ</NavBtn>
-          <NavBtn color={C.violet} onClick={() => exportScanFileCSV(scanFile)}>⬇ CSV</NavBtn>
-          <NavBtn color={C.violet} onClick={() => exportScanFileJSON(scanFile)}>⬇ JSON</NavBtn>
-          <NavBtn color={C.amber} onClick={() => window.print()}>🖨 PDF</NavBtn>
-        </>
-      }
     >
+      {/* ── Action bar — top-right of feature area ── */}
+      <div style={{
+        display: "flex", justifyContent: "flex-end", gap: "0.4rem",
+        padding: "0.5rem 1rem", borderBottom: `1px solid ${C.border}`,
+        background: C.bg2, flexShrink: 0,
+      }}>
+        <NavBtn color={C.green} onClick={() => navigate("/city/map")}>🗺 Bản đồ</NavBtn>
+        <NavBtn color={C.violet} onClick={() => exportScanFileCSV(scanFile)}>⬇ CSV</NavBtn>
+        <NavBtn color={C.violet} onClick={() => exportScanFileJSON(scanFile)}>⬇ JSON</NavBtn>
+        <NavBtn color={C.amber} onClick={() => window.print()}>🖨 PDF</NavBtn>
+      </div>
       {agg ? <Dashboard agg={agg} wardResults={scanFile.wardCounts} city={city} /> : (
         <div style={{ padding: "2rem", color: C.muted }}>File này chưa có dữ liệu quét.</div>
       )}
