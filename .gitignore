@@ -4,3 +4,4 @@ dist/
 *.pbf
 *.osm
 data/vietnam-latest.osm.pbf
+.claude/
