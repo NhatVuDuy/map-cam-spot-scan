@@ -227,16 +227,16 @@ export async function batchScanCityGeneric({
         () => {}
       );
 
-      // Write geometry under scanId-scoped key
+      // Write geometry under scanId-scoped key — awaited so data is available immediately
       if (onWriteGeometry) {
-        onWriteGeometry(scanId, code, {
+        await onWriteGeometry(scanId, code, {
           points:           result.points           || [],
           cameras:          result.cameras          || [],
           roads:            result.roads            || [],
           rawIntersections: result.rawIntersections || [],
           rawWays:          result.rawWays          || [],
           rawSignalNodes:   result.rawSignalNodes   || [],
-        }).catch(() => {});
+        }).catch(err => console.warn(`[cityDB] geometry write failed for ${code}:`, err));
       }
 
       resultMap[code] = {
