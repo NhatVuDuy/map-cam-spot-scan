@@ -97,7 +97,11 @@ async function fetchOverpass(query, abortSignal) {
           body: `data=${encodeURIComponent(query)}`,
           signal,
         });
-        if (!res.ok) { lastErr = new Error(`HTTP ${res.status}`); break; } // non-2xx → skip endpoint
+        if (!res.ok) {
+          lastErr = new Error(`HTTP ${res.status}`);
+          if (res.status === 429) await new Promise(r => setTimeout(r, 5000));
+          break;
+        }
         return await res.json();
       } catch (err) {
         if (err.name === "AbortError") throw err;

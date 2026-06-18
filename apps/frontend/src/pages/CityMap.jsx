@@ -196,23 +196,6 @@ export default function CityMap() {
         },
       });
 
-      map.addLayer({
-        id: "wards-label",
-        type: "symbol",
-        source: "wards",
-        minzoom: 12.5,
-        layout: {
-          "text-field": ["get", "name"],
-          "text-size": 10,
-          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
-        },
-        paint: {
-          "text-color": C.text,
-          "text-halo-color": "#060d1a",
-          "text-halo-width": 1.5,
-        },
-      });
-
       // Hover state
       let hoveredId = null;
       map.on("mousemove", "wards-fill", e => {

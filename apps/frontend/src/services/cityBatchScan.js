@@ -79,7 +79,7 @@ async function scanWard(ward) {
   const { name, code } = ward.properties;
   const center = wardCenter(ward.geometry);
   const result = await browserScan(
-    { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: { maxResults: 800 } },
+    { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: {} },
     () => {}
   );
   // Persist full geometry to IndexedDB (async, non-blocking for count return)
@@ -223,7 +223,7 @@ export async function batchScanCityGeneric({
     try {
       const center = wardCenter(ward.geometry);
       const result = await browserScan(
-        { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: { maxResults: 800 }, signal },
+        { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: {}, signal },
         () => {}
       );
 
