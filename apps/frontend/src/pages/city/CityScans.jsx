@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout, { NavBtn, BackBtn } from "../../components/layout/AppLayout.jsx";
 import ScanProgress from "../../components/city/ScanProgress.jsx";
-import { getCity, seedBuiltInCities } from "../../utils/cityDB.js";
+import { getCity, getCities, addCity, seedBuiltInCities } from "../../utils/cityDB.js";
 import useScanFileStore from "../../store/scanFileStore.js";
 import { aggregateWards } from "../../services/cityBatchScan.js";
 
@@ -38,28 +38,152 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
   );
 }
 
-/* ── New scan modal ──────────────────────────────────────────────── */
-function NewScanModal({ city, onConfirm, onCancel }) {
-  const defaultName = `${city?.name || "TP.HCM"} — ${new Date().toLocaleDateString("vi-VN")}`;
-  const [name, setName] = useState(defaultName);
+/* ── New scan modal (2-step) ─────────────────────────────────────── */
+function NewScanModal({ cities, onConfirm, onAddCity, onCancel }) {
+  const [step, setStep] = useState("city"); // "city" | "name"
+  const [selectedCity, setSelectedCity] = useState(cities[0] || null);
+  const [showImport, setShowImport]     = useState(false);
+  const [importing, setImporting]       = useState(false);
+  const [importErr, setImportErr]       = useState("");
+
+  // import form state
+  const [importName, setImportName]         = useState("");
+  const [importGeojson, setImportGeojson]   = useState(null);
+  const [importWardCount, setImportWardCount] = useState(0);
+
+  // step 2
+  const defaultScanName = `${selectedCity?.name || ""} — ${new Date().toLocaleDateString("vi-VN")}`;
+  const [scanName, setScanName] = useState(defaultScanName);
+  useEffect(() => { setScanName(`${selectedCity?.name || ""} — ${new Date().toLocaleDateString("vi-VN")}`); }, [selectedCity]);
+
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const gj = JSON.parse(ev.target.result);
+        const wards = (gj.features || []).filter(f => f.properties?.type === "ward");
+        if (wards.length === 0) { setImportErr("Không tìm thấy feature nào có type=ward trong GeoJSON"); return; }
+        setImportGeojson(gj);
+        setImportWardCount(wards.length);
+        setImportErr("");
+        if (!importName) setImportName(file.name.replace(/\.geojson$/i, ""));
+      } catch { setImportErr("File không hợp lệ — phải là GeoJSON"); }
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleAddCity() {
+    if (!importGeojson || !importName.trim()) return;
+    setImporting(true);
+    try {
+      const city = await onAddCity(importName.trim(), importGeojson, importWardCount);
+      setSelectedCity(city);
+      setShowImport(false);
+      setImportGeojson(null); setImportName(""); setImportWardCount(0);
+    } catch (err) { setImportErr(err.message); }
+    setImporting(false);
+  }
+
+  const boxStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" };
+  const cardStyle = { background: C.card, border: `1px solid ${C.border}`, borderRadius: "14px", padding: "1.75rem", maxWidth: "440px", width: "90%", margin: "1rem" };
+
+  if (step === "city") return (
+    <div style={boxStyle}>
+      <div style={cardStyle}>
+        <div style={{ fontSize: "1rem", fontWeight: 800, color: C.text, marginBottom: "0.25rem" }}>Chọn thành phố</div>
+        <div style={{ fontSize: "0.75rem", color: C.dim, marginBottom: "1rem" }}>Chọn thành phố để quét, hoặc thêm thành phố mới bằng GeoJSON.</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "1rem" }}>
+          {cities.map(c => (
+            <div key={c.id} onClick={() => setSelectedCity(c)} style={{
+              display: "flex", alignItems: "center", gap: "0.75rem",
+              padding: "0.6rem 0.9rem", borderRadius: "8px", cursor: "pointer",
+              background: selectedCity?.id === c.id ? `${C.cyan}18` : C.card2,
+              border: `1px solid ${selectedCity?.id === c.id ? C.cyan + "55" : C.border}`,
+            }}>
+              <span style={{ fontSize: "1.1rem" }}>🏙</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "0.82rem", fontWeight: 700, color: selectedCity?.id === c.id ? C.cyan : C.text }}>{c.name}</div>
+                <div style={{ fontSize: "0.63rem", color: C.muted }}>{c.wardCount || "?"} phường/xã</div>
+              </div>
+              {selectedCity?.id === c.id && <span style={{ color: C.cyan, fontSize: "0.8rem" }}>✓</span>}
+            </div>
+          ))}
+
+          {/* Add city */}
+          {!showImport ? (
+            <button onClick={() => setShowImport(true)} style={{
+              display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.55rem 0.9rem",
+              borderRadius: "8px", cursor: "pointer", background: "transparent",
+              border: `1px dashed ${C.border}`, color: C.dim, fontSize: "0.78rem",
+            }}>
+              <span>＋</span> Thêm thành phố từ GeoJSON
+            </button>
+          ) : (
+            <div style={{ border: `1px solid ${C.cyan}44`, borderRadius: "9px", padding: "0.9rem", background: C.card2 }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, color: C.cyan, marginBottom: "0.6rem" }}>Thêm thành phố mới</div>
+
+              <label style={{ fontSize: "0.68rem", color: C.muted, display: "block", marginBottom: "0.25rem" }}>Tên thành phố</label>
+              <input value={importName} onChange={e => setImportName(e.target.value)} placeholder="VD: Hà Nội"
+                style={{ width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: "5px", padding: "0.35rem 0.6rem", color: C.text, fontSize: "0.78rem", outline: "none", boxSizing: "border-box", marginBottom: "0.5rem" }} />
+
+              <label style={{ fontSize: "0.68rem", color: C.muted, display: "block", marginBottom: "0.25rem" }}>File GeoJSON ranh giới phường/xã</label>
+              <input type="file" accept=".geojson,application/geo+json,application/json"
+                onChange={handleFileChange}
+                style={{ fontSize: "0.72rem", color: C.dim, marginBottom: "0.4rem" }} />
+
+              {importGeojson && (
+                <div style={{ fontSize: "0.68rem", color: C.green, marginBottom: "0.4rem" }}>✓ Đọc được {importWardCount} phường/xã</div>
+              )}
+              {importErr && <div style={{ fontSize: "0.68rem", color: C.red, marginBottom: "0.4rem" }}>{importErr}</div>}
+
+              <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.4rem" }}>
+                <button onClick={() => { setShowImport(false); setImportErr(""); }} style={{ flex: 1, background: "none", border: `1px solid ${C.border}`, borderRadius: "6px", padding: "0.35rem", color: C.muted, cursor: "pointer", fontSize: "0.74rem" }}>Hủy</button>
+                <button onClick={handleAddCity} disabled={!importGeojson || !importName.trim() || importing}
+                  style={{ flex: 2, background: importGeojson && importName.trim() ? `${C.cyan}22` : C.card, border: `1px solid ${importGeojson && importName.trim() ? C.cyan + "55" : C.border}`, borderRadius: "6px", padding: "0.35rem", color: importGeojson && importName.trim() ? C.cyan : C.muted, fontWeight: 700, cursor: "pointer", fontSize: "0.74rem" }}>
+                  {importing ? "Đang thêm..." : "＋ Thêm"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: "7px", padding: "0.5rem 1.1rem", color: C.muted, cursor: "pointer", fontSize: "0.82rem" }}>Hủy</button>
+          <button onClick={() => setStep("name")} disabled={!selectedCity} style={{
+            background: selectedCity ? `linear-gradient(135deg,${C.cyan},${C.violet})` : C.card,
+            border: "none", borderRadius: "7px", padding: "0.5rem 1.4rem",
+            color: selectedCity ? "#fff" : C.muted, fontWeight: 700, fontSize: "0.84rem", cursor: selectedCity ? "pointer" : "not-allowed",
+          }}>Tiếp theo →</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // step === "name"
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "14px", padding: "1.75rem", maxWidth: "420px", width: "90%", margin: "1rem" }}>
-        <div style={{ fontSize: "1rem", fontWeight: 800, color: C.text, marginBottom: "0.4rem" }}>Quét mới — {city?.name}</div>
+    <div style={boxStyle}>
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
+          <button onClick={() => setStep("city")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: "0.8rem", padding: 0 }}>← Đổi thành phố</button>
+        </div>
+        <div style={{ fontSize: "1rem", fontWeight: 800, color: C.text, marginBottom: "0.25rem" }}>Quét mới — {selectedCity?.name}</div>
         <div style={{ fontSize: "0.78rem", color: C.dim, marginBottom: "1.25rem" }}>
-          Quét toàn bộ {city?.wardCount || 168} phường/xã từ OpenStreetMap. Kết quả lưu vào IndexedDB.
+          Quét toàn bộ {selectedCity?.wardCount || "?"} phường/xã từ OpenStreetMap. Kết quả lưu vào IndexedDB.
         </div>
         <label style={{ fontSize: "0.72rem", color: C.muted, display: "block", marginBottom: "0.35rem" }}>Tên file quét</label>
         <input
           autoFocus
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") onConfirm(name.trim() || defaultName); if (e.key === "Escape") onCancel(); }}
+          value={scanName}
+          onChange={e => setScanName(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") onConfirm(selectedCity, scanName.trim() || defaultScanName); if (e.key === "Escape") onCancel(); }}
           style={{ width: "100%", background: C.card2, border: `1px solid ${C.cyan}55`, borderRadius: "7px", padding: "0.5rem 0.75rem", color: C.text, fontSize: "0.84rem", outline: "none", boxSizing: "border-box", marginBottom: "1.25rem" }}
         />
         <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
           <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: "7px", padding: "0.5rem 1.1rem", color: C.muted, cursor: "pointer", fontSize: "0.82rem" }}>Hủy</button>
-          <button onClick={() => onConfirm(name.trim() || defaultName)} style={{
+          <button onClick={() => onConfirm(selectedCity, scanName.trim() || defaultScanName)} style={{
             background: `linear-gradient(135deg,${C.green},${C.cyan})`, border: "none",
             borderRadius: "7px", padding: "0.5rem 1.4rem", color: "#fff", fontWeight: 700,
             fontSize: "0.84rem", cursor: "pointer",
@@ -387,9 +511,9 @@ function SidebarControls({ isRunning, onNewScan, onStop }) {
 
 /* ── Main page ───────────────────────────────────────────────────── */
 export default function CityScans({ defaultCityId }) {
-  const cityId = defaultCityId || "hcm";
   const navigate   = useNavigate();
   const [city, setCity]             = useState(null);
+  const [cities, setCities]         = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showNewScanModal, setShowNewScanModal] = useState(false);
   const runSinceRef = useRef(0);
@@ -404,12 +528,13 @@ export default function CityScans({ defaultCityId }) {
   useEffect(() => {
     async function init() {
       await seedBuiltInCities();
-      const c = await getCity(cityId);
-      setCity(c);
-      if (c) await setActiveCity(c);
+      const allCities = await getCities();
+      setCities(allCities);
+      const c = allCities.find(x => x.id === (defaultCityId || "hcm")) || allCities[0];
+      if (c) { setCity(c); await setActiveCity(c); }
     }
     init();
-  }, [cityId]);
+  }, []);
 
   // Keep selectedFile in sync with store updates
   useEffect(() => {
@@ -436,9 +561,28 @@ export default function CityScans({ defaultCityId }) {
     </AppLayout>
   );
 
-  async function handleNewScan(name) {
+  async function handleAddCity(name, geojsonData, wardCount) {
+    const newCity = {
+      id: `city_${Date.now()}`,
+      name,
+      geojsonPath: null,
+      geojsonData,
+      wardCount,
+    };
+    await addCity(newCity);
+    const allCities = await getCities();
+    setCities(allCities);
+    return newCity;
+  }
+
+  async function handleNewScan(selectedCity, name) {
     setShowNewScanModal(false);
     runSinceRef.current = 0;
+    // Switch city context if changed
+    if (selectedCity.id !== city?.id) {
+      setCity(selectedCity);
+      await setActiveCity(selectedCity);
+    }
     await startFresh(name);
   }
 
@@ -513,9 +657,10 @@ export default function CityScans({ defaultCityId }) {
 
       </div>
 
-      {showNewScanModal && (
+      {showNewScanModal && cities.length > 0 && (
         <NewScanModal
-          city={city}
+          cities={cities}
+          onAddCity={handleAddCity}
           onConfirm={handleNewScan}
           onCancel={() => setShowNewScanModal(false)}
         />
