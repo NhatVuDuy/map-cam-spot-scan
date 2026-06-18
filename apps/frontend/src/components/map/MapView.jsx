@@ -69,6 +69,33 @@ if (typeof document !== "undefined" && !document.getElementById("cam-popup-style
   document.head.appendChild(s);
 }
 
+// ─── Block picker HTML (for popups — mirrors BlockPicker in MapContextMenu) ──
+
+const PICKER_GROUPS = [
+  { label: "Giao lộ & Đường",       keys: ["B01","B02","B03","B04","B05","B06","B07","B07-S"] },
+  { label: "Địa điểm & Công trình", keys: ["B08","B09","B10","B11","B12","B13"] },
+];
+
+function buildBlockPickerHTML(pointId, currentBlockId) {
+  let html = `<div data-block-picker-for="${pointId}" style="max-height:130px;overflow-y:auto;border:1px solid #1e3354;border-radius:5px;font-size:0.68rem;">`;
+  for (const g of PICKER_GROUPS) {
+    html += `<div style="padding:2px 8px;background:#060d1a;color:#475569;font-size:0.57rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid #1e3354;position:sticky;top:0;">${g.label}</div>`;
+    for (const k of g.keys) {
+      const b = BLOCKS[k];
+      if (!b) continue;
+      const active = k === currentBlockId;
+      const shape = b.shape === "square" ? "■" : "●";
+      html += `<div data-pick-block="${k}" style="display:flex;align-items:center;gap:5px;padding:3px 8px;cursor:pointer;background:${active ? b.color + "20" : "transparent"};border-left:2px solid ${active ? b.color : "transparent"};">
+        <span style="color:${b.color};font-size:0.62rem;flex-shrink:0">${shape}</span>
+        <span style="color:${b.color};font-weight:700;font-size:0.6rem;flex-shrink:0;min-width:28px">${k}</span>
+        <span style="color:${active ? "#e2e8f0" : "#64748b"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.name}</span>
+      </div>`;
+    }
+  }
+  html += `</div>`;
+  return html;
+}
+
 // ─── Intersection popup HTML ──────────────────────────────────────────────────
 
 function buildIntersectionPopupHTML({ props, distFmt }) {
@@ -144,10 +171,8 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
         ${score != null ? `<div style="display:flex;justify-content:space-between;font-size:0.78rem"><span style="color:#64748b">Điểm ưu tiên</span><strong style="color:#FBBF24">★ ${score}</strong></div>` : ""}
       </div>
       <div style="padding:0.3rem 0.85rem 0rem">
-        <label style="font-size:0.65rem;color:#64748b;display:block;margin-bottom:3px">Loại địa điểm</label>
-        <select data-change-block-id="${props.id}" style="width:100%;padding:4px 6px;background:#1e293b;border:1px solid #334155;border-radius:5px;color:#e2e8f0;font-size:0.72rem;cursor:pointer">
-          ${Object.entries(BLOCKS).map(([k,b]) => `<option value="${k}" ${k === (props.blockId||'') ? 'selected' : ''}>${b.shape === 'square' ? '■' : '●'} ${k} — ${b.name}</option>`).join('')}
-        </select>
+        <label style="font-size:0.65rem;color:#64748b;display:block;margin-bottom:4px">Loại địa điểm</label>
+        ${buildBlockPickerHTML(props.id, props.blockId || '')}
       </div>
       <div style="padding:0.4rem 0.85rem 0.65rem">
         <button data-delete-id="${props.id}"
@@ -380,6 +405,16 @@ function MapViewInner() {
         return;
       }
 
+      // Block picker item click
+      const pickBtn = e.target.closest("[data-pick-block]");
+      if (pickBtn) {
+        const newBlockId = pickBtn.getAttribute("data-pick-block");
+        const container  = pickBtn.closest("[data-block-picker-for]");
+        const id = container?.getAttribute("data-block-picker-for");
+        if (id) useScanStore.getState().updatePointBlock(id, newBlockId);
+        return;
+      }
+
       // Signal toggle button
       const sigBtn = e.target.closest("[data-ix-signal]");
       if (sigBtn) {
@@ -406,27 +441,9 @@ function MapViewInner() {
       }
     };
 
-    const onChange = (e) => {
-      // Intersection shape selector
-      const ixSel = e.target.closest("[data-ix-shape]");
-      if (ixSel) {
-        const id = ixSel.getAttribute("data-ix-shape");
-        useScanStore.getState().setIntersectionOverride(id, { intersectionShape: ixSel.value });
-        return;
-      }
-      // POI block type change
-      const blockSel = e.target.closest("[data-change-block-id]");
-      if (blockSel) {
-        const id = blockSel.getAttribute("data-change-block-id");
-        useScanStore.getState().updatePointBlock(id, blockSel.value);
-      }
-    };
-
-    document.addEventListener("click",  onClick);
-    document.addEventListener("change", onChange);
+    document.addEventListener("click", onClick);
     return () => {
-      document.removeEventListener("click",  onClick);
-      document.removeEventListener("change", onChange);
+      document.removeEventListener("click", onClick);
     };
   }, []);
 
@@ -494,7 +511,7 @@ function MapViewInner() {
         filter: circlePoiFilter,
         paint: {
           "circle-color": ["get", "color"],
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 9, 16, 18],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 12],
           "circle-opacity": 0.22,
           "circle-blur": 1,
         },
@@ -507,14 +524,14 @@ function MapViewInner() {
         filter: circlePoiFilter,
         paint: {
           "circle-color": ["get", "color"],
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4, 16, 10],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.7, 16, 6.7],
           "circle-opacity": 0.95,
-          "circle-stroke-width": 2,
+          "circle-stroke-width": 1.5,
           "circle-stroke-color": "#ffffff",
         },
       });
 
-      // Square POI markers (B08–B13)
+      // Square POI markers (B08–B13) — half size vs previous
       map.addLayer({
         id: "points-sq-halo",
         type: "symbol",
@@ -522,7 +539,7 @@ function MapViewInner() {
         filter: squarePoiFilter,
         layout: {
           "icon-image": ["concat", "sq-", ["get", "blockId"]],
-          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 1.1, 16, 2.0],
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.55, 16, 1.0],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
         },
@@ -536,7 +553,7 @@ function MapViewInner() {
         filter: squarePoiFilter,
         layout: {
           "icon-image": ["concat", "sq-", ["get", "blockId"]],
-          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.75, 16, 1.4],
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.38, 16, 0.7],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
         },
@@ -579,21 +596,6 @@ function MapViewInner() {
         },
       });
 
-      // Signal dot: yellow dot on top of any point that has a traffic signal
-      map.addLayer({
-        id: "points-signal",
-        type: "circle",
-        source: "points",
-        filter: ["==", ["get", "hasSignal"], true],
-        paint: {
-          "circle-color": "#FBBF24",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 5],
-          "circle-opacity": 1,
-          "circle-stroke-width": 1.5,
-          "circle-stroke-color": "#0d1829",
-        },
-      });
-
       // ── Legacy intersection layers kept for reference (never match) ──────────
       // Old system used category="intersection" + intersectionShape="quad/tri/alley"
       // New system uses blockId (B01-B07-S) for all points — these layers are inert.
@@ -632,6 +634,9 @@ function MapViewInner() {
       const openPoiPopup = (e) => {
         if (aimingRef.current) return;
         const props   = e.features[0].properties;
+        // Trigger list scroll
+        const pt = useScanStore.getState().points.find(p => p.id === props.id);
+        if (pt) useScanStore.getState().setSelectedPoint(pt);
         const cat     = CATEGORIES[props.category];
         const distFmt = props.distanceM >= 1000
           ? `${(props.distanceM / 1000).toFixed(2)} km`
@@ -810,7 +815,6 @@ function MapViewInner() {
     map.setPaintProperty("points-circle", "circle-opacity", poiOpacity);
     map.setPaintProperty("points-halo",   "circle-opacity", filter ? ["case", ["==", ["get", "blockId"], filter], 0.22, 0.03] : 0.22);
     map.setPaintProperty("points-label",  "text-opacity",   filter ? ["case", ["==", ["get", "blockId"], filter], 0.9, 0.1] : 0.9);
-    map.setPaintProperty("points-signal", "circle-opacity", filter ? ["case", ["==", ["get", "blockId"], filter], 1, 0.1] : 1);
   }, [mapReady, filter]);
 
   // ── 6. Highlight selected point ──────────────────────────────────────────────
@@ -818,11 +822,8 @@ function MapViewInner() {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
 
-    if (popupRef.current && !activeIxRef.current) {
-      popupRef.current.remove(); popupRef.current = null;
-    }
-
     if (!selectedPoint) {
+      if (popupRef.current && !activeIxRef.current) { popupRef.current.remove(); popupRef.current = null; }
       map.setFilter("points-selected", ["==", ["get", "id"], "__none__"]);
       return;
     }
@@ -830,7 +831,9 @@ function MapViewInner() {
     map.setFilter("points-selected", ["==", ["get", "id"], selectedPoint.id]);
     map.flyTo({ center: [selectedPoint.lng, selectedPoint.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
 
-    {
+    // If popup is already open for this point (opened by map click), keep it
+    const alreadyOpen = popupRef.current && !activeIxRef.current;
+    if (!alreadyOpen) {
       const cat     = CATEGORIES[selectedPoint.category];
       const distFmt = selectedPoint.distanceM >= 1000
         ? `${(selectedPoint.distanceM / 1000).toFixed(2)} km`

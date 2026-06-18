@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useScanner } from "../../hooks/useScanner.js";
 import { useExport } from "../../hooks/useExport.js";
-import { BLOCKS, BLOCK_KEYS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
+import { BLOCKS, BLOCK_KEYS, SQUARE_BLOCKS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
@@ -34,23 +34,23 @@ function StatBadge({ label, value, color = C.cyan }) {
       borderRadius: "8px", padding: "0.5rem 0.75rem", flex: 1,
     }}>
       <span style={{ fontSize: "1.2rem", fontWeight: 800, color }}>{value}</span>
-      <span style={{ fontSize: "0.62rem", color: C.muted, marginTop: "2px", whiteSpace: "nowrap" }}>{label}</span>
+      <span style={{ fontSize: "0.62rem", color: "#94a3b8", marginTop: "2px", whiteSpace: "nowrap" }}>{label}</span>
     </div>
   );
 }
 
 /* ─── mini bar ────────────────────────────────────────────────────────────── */
-function MiniBar({ label, value, max, color, total }) {
+function MiniBar({ label, labelColor, value, max, color, total }) {
   const pct   = max > 0 ? (value / max) * 100 : 0;
   const share = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
-      <div style={{ fontSize: "0.72rem", color: "#94a3b8", width: "90px", flexShrink: 0, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
-      <div style={{ flex: 1, height: "6px", background: `${color}20`, borderRadius: "3px", overflow: "hidden" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.35rem" }}>
+      <div style={{ fontSize: "0.7rem", color: labelColor || color, width: "auto", minWidth: 0, flex: "0 1 130px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
+      <div style={{ flex: 1, height: "5px", background: `${color}20`, borderRadius: "3px", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}99)`, borderRadius: "3px", transition: "width 0.6s ease" }} />
       </div>
-      <div style={{ fontSize: "0.68rem", color: "#cbd5e1", width: "26px", textAlign: "right", flexShrink: 0, fontWeight: 600 }}>{value}</div>
-      <div style={{ fontSize: "0.62rem", color, width: "28px", textAlign: "right", flexShrink: 0 }}>{share}%</div>
+      <div style={{ fontSize: "0.68rem", color: "#e2e8f0", width: "24px", textAlign: "right", flexShrink: 0, fontWeight: 700 }}>{value}</div>
+      <div style={{ fontSize: "0.62rem", color, width: "26px", textAlign: "right", flexShrink: 0 }}>{share}%</div>
     </div>
   );
 }
@@ -270,7 +270,7 @@ function StatsTab() {
   return (
     <div style={{ flex: 1, overflowY: "auto" }}>
       {/* summary */}
-      <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ padding: "0.6rem 0.75rem", borderBottom: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <StatBadge label="Tổng vị trí" value={loading ? "…" : total} color={C.cyan} />
           <StatBadge label="Cam đề xuất" value={loading ? "…" : totalCams} color={C.amber} />
@@ -279,38 +279,45 @@ function StatsTab() {
 
       {/* block distribution */}
       {total > 0 && (
-        <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.7rem" }}>Phân bố theo loại</div>
-          {activeBlocks.map(k => (
-            <MiniBar
-              key={k}
-              label={`${BLOCKS[k].shape === "square" ? "■" : "●"} ${k} ${BLOCKS[k].symbol}`}
-              value={blockCounts[k] || 0}
-              max={maxCount}
-              color={BLOCKS[k].color}
-              total={total}
-            />
-          ))}
+        <div style={{ padding: "0.6rem 0.75rem", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>Phân bố theo loại</div>
+          {activeBlocks.map(k => {
+            const b = BLOCKS[k];
+            const shape = SQUARE_BLOCKS.includes(k) ? "■" : "●";
+            return (
+              <MiniBar
+                key={k}
+                label={<><span style={{ color: b.color }}>{shape}</span> <strong style={{ color: b.color }}>[{k}]</strong> {b.name}</>}
+                labelColor="#94a3b8"
+                value={blockCounts[k] || 0}
+                max={maxCount}
+                color={b.color}
+                total={total}
+              />
+            );
+          })}
         </div>
       )}
 
       {/* cam estimates by type */}
       {totalCams > 0 && (
-        <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "0.7rem" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Camera đề xuất (thiết kế)</div>
-            <span style={{ fontSize: "1rem", fontWeight: 800, color: C.amber }}>{totalCams}</span>
+        <div style={{ padding: "0.6rem 0.75rem", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "0.6rem" }}>
+            <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>Camera Đề xuất</div>
+            <span style={{ fontSize: "0.95rem", fontWeight: 800, color: C.amber }}>{totalCams}</span>
           </div>
           {CAM_TYPES.map(t => {
             const count = camEstimates[t] || 0;
             if (!count) return null;
+            const camColor = CAM_COLORS[t] || C.cyan;
             return (
               <MiniBar
                 key={t}
-                label={t}
+                label={<strong style={{ color: camColor }}>{t}</strong>}
+                labelColor={camColor}
                 value={count}
                 max={Math.max(...Object.values(camEstimates), 1)}
-                color={CAM_COLORS[t] || C.cyan}
+                color={camColor}
                 total={totalCams}
               />
             );
@@ -320,28 +327,38 @@ function StatsTab() {
 
       {/* per-block cam breakdown */}
       {total > 0 && (
-        <div style={{ padding: "0.75rem 0.85rem" }}>
-          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>Chi tiết theo vị trí</div>
+        <div style={{ padding: "0.6rem 0.75rem" }}>
+          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>Chi tiết theo vị trí</div>
           {activeBlocks.map(blockId => {
             const block = BLOCKS[blockId];
             const cnt   = blockCounts[blockId] || 0;
-            const total_block_cams = CAM_TYPES.reduce((s, t) => s + (block.cams[t] || 0) * cnt, 0);
-            if (!total_block_cams) return null;
+            const totalBlockCams = CAM_TYPES.reduce((s, t) => s + (block.cams[t] || 0) * cnt, 0);
+            if (!totalBlockCams) return null;
+            const shape = SQUARE_BLOCKS.includes(blockId) ? "■" : "●";
             return (
               <div key={blockId} style={{
-                marginBottom: "0.55rem", padding: "0.4rem 0.55rem",
+                marginBottom: "0.5rem", padding: "0.4rem 0.55rem",
                 background: `${block.color}0a`, border: `1px solid ${block.color}22`,
                 borderRadius: "6px",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.2rem" }}>
-                  <span style={{ fontSize: "0.73rem", color: block.color, fontWeight: 700 }}>{block.symbol} {blockId}</span>
-                  <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{cnt} vị trí × {camTotal(block)} cam = <strong style={{ color: C.amber }}>{total_block_cams}</strong></span>
+                  <span style={{ fontSize: "0.73rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ color: block.color }}>{shape}</span>
+                    <span style={{ color: block.color }}>{blockId}</span>
+                    <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: "0.68rem" }}>{block.name}</span>
+                  </span>
+                  <span style={{ fontSize: "0.68rem", color: "#94a3b8", flexShrink: 0 }}>
+                    {cnt}×{camTotal(block)} = <strong style={{ color: C.amber }}>{totalBlockCams}</strong>
+                  </span>
                 </div>
-                <div style={{ fontSize: "0.66rem", color: C.muted, lineHeight: 1.6 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                   {CAM_TYPES.filter(t => block.cams[t] > 0).map(t => (
-                    <span key={t} style={{ marginRight: "6px" }}>
-                      <span style={{ color: CAM_COLORS[t] }}>{t}</span>×{block.cams[t]}
-                    </span>
+                    <span key={t} style={{
+                      fontSize: "0.6rem", padding: "1px 5px",
+                      background: `${CAM_COLORS[t] || C.cyan}18`,
+                      border: `1px solid ${CAM_COLORS[t] || C.cyan}44`,
+                      borderRadius: "3px", color: CAM_COLORS[t] || C.cyan,
+                    }}>{t}×{block.cams[t]}</span>
                   ))}
                 </div>
               </div>
