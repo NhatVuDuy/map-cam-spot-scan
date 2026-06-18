@@ -1,5 +1,5 @@
 import React from "react";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
 import Scanner from "./pages/Scanner.jsx";
 import Sys from "./pages/Sys.jsx";
@@ -13,7 +13,7 @@ import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route path="/"              element={<Landing />} />
         <Route path="/scan"          element={<Scanner />} />
@@ -30,6 +30,6 @@ export default function App() {
         <Route path="/map"           element={<Navigate to="/scan" replace />} />
         <Route path="*"              element={<NotFound />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
