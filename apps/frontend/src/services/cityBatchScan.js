@@ -241,13 +241,7 @@ export async function batchScanCityGeneric({
 
       resultMap[code] = {
         name, code,
-        camCount:   result.cameras.length,
         byCat:      result.meta.byCategory || {},
-        roadKm:     calcRoadKm(result.roads),
-        cam1:       result.cameras.filter(c => c.type === "cam1").length,
-        cam2:       result.cameras.filter(c => ["cam2", "cam22"].includes(c.type)).length,
-        cam21:      result.cameras.filter(c => ["cam21", "cam23"].includes(c.type)).length,
-        camAlley:   result.cameras.filter(c => c.type === "cam_alley").length,
         durationMs: result.meta.durationMs,
         error: null,
       };
