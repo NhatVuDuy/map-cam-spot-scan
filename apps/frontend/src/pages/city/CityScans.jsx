@@ -330,7 +330,11 @@ function ScanDetail({ file, cityId, resume, retryFailed }) {
       {/* Action buttons */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {(agg?.completed > 0 || file.wardCounts?.length > 0) && (
-          <button onClick={() => navigate(`/city/${cityId}/scan/${file.id}`)} style={{
+          <button onClick={() => {
+            sessionStorage.setItem("city-report-scan", file.id);
+            sessionStorage.setItem("city-report-city", cityId || "hcm");
+            navigate("/city/report");
+          }} style={{
             background: `linear-gradient(135deg,${C.cyan},${C.violet})`, border: "none",
             borderRadius: "8px", padding: "0.65rem", width: "100%",
             color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
@@ -454,8 +458,13 @@ export default function CityScans({ defaultCityId }) {
   return (
     <AppLayout
       featureName={city.name}
-      backButton={params.cityId ? <BackBtn onClick={() => navigate("/")}>← Trang chủ</BackBtn> : null}
-      navButtons={<NavBtn color={C.cyan} onClick={() => navigate("/scan")}>🔍 Quét vùng</NavBtn>}
+      backButton={<BackBtn onClick={() => navigate("/")}>← Trang chủ</BackBtn>}
+      navButtons={
+        <>
+          <NavBtn color={C.violet} onClick={() => navigate("/city/map")}>🗺 Bản đồ</NavBtn>
+          <NavBtn color={C.cyan} onClick={() => navigate("/scan")}>🔍 Quét vùng</NavBtn>
+        </>
+      }
     >
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 

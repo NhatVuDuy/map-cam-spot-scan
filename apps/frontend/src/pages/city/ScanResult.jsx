@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import AppLayout, { NavBtn, BackBtn } from "../../components/layout/AppLayout.jsx";
-import ChoroplethMap from "../../components/city/ChoroplethMap.jsx";
 import { getScanFile, getCity, seedBuiltInCities } from "../../utils/cityDB.js";
 import { aggregateWards, exportScanFileJSON, exportScanFileCSV } from "../../services/cityBatchScan.js";
 import { BLOCKS, BLOCK_KEYS, CAM_TYPES, CAM_COLORS } from "../../config/blocks.js";
@@ -143,12 +142,21 @@ function Dashboard({ agg, wardResults, city }) {
 
 /* ── Main page ───────────────────────────────────────────────────── */
 export default function ScanResult() {
-  const { cityId, scanId } = useParams();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  // scanId comes from navigation state OR sessionStorage (for page refresh)
+  const scanId  = location.state?.scanId  || sessionStorage.getItem("city-report-scan");
+  const cityId  = location.state?.cityId  || sessionStorage.getItem("city-report-city") || "hcm";
+
+  // Persist to sessionStorage so refresh still works
+  useEffect(() => {
+    if (scanId)  sessionStorage.setItem("city-report-scan", scanId);
+    if (cityId)  sessionStorage.setItem("city-report-city", cityId);
+  }, [scanId, cityId]);
 
   const [scanFile, setScanFile] = useState(null);
   const [city, setCity]         = useState(null);
-  const [tab, setTab]           = useState("dashboard"); // dashboard | map
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
@@ -171,7 +179,7 @@ export default function ScanResult() {
   );
 
   if (!scanFile) return (
-    <AppLayout featureName="Không tìm thấy" backButton={<BackBtn onClick={() => navigate(`/city/${cityId}`)}>← Quay lại</BackBtn>}>
+    <AppLayout featureName="Không tìm thấy" backButton={<BackBtn onClick={() => navigate("/city")}>← Quay lại</BackBtn>}>
       <div style={{ padding: "2rem", color: C.red }}>File quét không tồn tại.</div>
     </AppLayout>
   );
@@ -179,38 +187,18 @@ export default function ScanResult() {
   return (
     <AppLayout
       featureName={scanFile.name}
-      backButton={<BackBtn onClick={() => navigate(`/city/${cityId}`)}>← {city?.name || cityId}</BackBtn>}
+      backButton={<BackBtn onClick={() => navigate("/city")}>← {city?.name || cityId}</BackBtn>}
       navButtons={
         <>
-          <div style={{ display: "flex", borderRadius: "6px", overflow: "hidden", border: `1px solid ${C.border}` }}>
-            {[["dashboard","📊 Thống kê"],["map","🗺 Bản đồ"]].map(([key,label]) => (
-              <button key={key} onClick={() => setTab(key)} style={{
-                padding: "4px 12px", fontSize: "0.72rem", fontWeight: 600, cursor: "pointer", border: "none",
-                background: tab===key ? C.cyan : C.card, color: tab===key ? "#000" : C.dim,
-              }}>{label}</button>
-            ))}
-          </div>
+          <NavBtn color={C.green} onClick={() => navigate("/city/map")}>🗺 Bản đồ</NavBtn>
           <NavBtn color={C.violet} onClick={() => exportScanFileCSV(scanFile)}>⬇ CSV</NavBtn>
           <NavBtn color={C.violet} onClick={() => exportScanFileJSON(scanFile)}>⬇ JSON</NavBtn>
           <NavBtn color={C.amber} onClick={() => window.print()}>🖨 PDF</NavBtn>
         </>
       }
-      style={tab === "map" ? { height: "100vh", overflow: "hidden" } : {}}
     >
-      {tab === "dashboard" ? (
-        agg ? <Dashboard agg={agg} wardResults={scanFile.wardCounts} city={city} /> : (
-          <div style={{ padding: "2rem", color: C.muted }}>File này chưa có dữ liệu quét.</div>
-        )
-      ) : (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <ChoroplethMap
-            wardCounts={scanFile.wardCounts || []}
-            geojsonPath={city?.geojsonPath || null}
-            geojsonData={city?.geojsonData || null}
-            cityCenter={city?.center || { lng: 106.66, lat: 10.77 }}
-            onWardClick={(wardCode) => navigate(`/city/${cityId}/scan/${scanId}/ward/${wardCode}`)}
-          />
-        </div>
+      {agg ? <Dashboard agg={agg} wardResults={scanFile.wardCounts} city={city} /> : (
+        <div style={{ padding: "2rem", color: C.muted }}>File này chưa có dữ liệu quét.</div>
       )}
 
       <style>{`
