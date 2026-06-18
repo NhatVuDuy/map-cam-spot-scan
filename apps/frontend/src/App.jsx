@@ -15,21 +15,20 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/"                               element={<Landing />} />
-        <Route path="/scan"                           element={<Scanner />} />
-        {/* City Scan */}
-        <Route path="/city"                           element={<CityScans defaultCityId="hcm" />} />
-        <Route path="/city/ward/:code"                element={<WardDetail />} />
-        <Route path="/city/:cityId"                   element={<CityScans />} />
-        <Route path="/city/:cityId/scan/:scanId"      element={<ScanResult />} />
-        <Route path="/city-map"                       element={<CityMap />} />
-        <Route path="/sys"                            element={<Sys />} />
+        <Route path="/"              element={<Landing />} />
+        <Route path="/scan"          element={<Scanner />} />
+        <Route path="/city"          element={<CityScans defaultCityId="hcm" />} />
+        <Route path="/city/report"   element={<ScanResult />} />
+        <Route path="/city/map"      element={<CityMap />} />
+        <Route path="/city/details"  element={<WardDetail />} />
+        <Route path="/sys"           element={<Sys />} />
         {/* Legacy */}
-        <Route path="/plan"                           element={<Plan />} />
-        <Route path="/city-hub"                       element={<CityHub />} />
-        <Route path="/info" element={<Navigate to="/" replace />} />
-        <Route path="/map"  element={<Navigate to="/scan" replace />} />
-        <Route path="*"     element={<NotFound />} />
+        <Route path="/plan"          element={<Plan />} />
+        <Route path="/city-hub"      element={<CityHub />} />
+        <Route path="/city-map"      element={<Navigate to="/city/map" replace />} />
+        <Route path="/info"          element={<Navigate to="/" replace />} />
+        <Route path="/map"           element={<Navigate to="/scan" replace />} />
+        <Route path="*"              element={<NotFound />} />
       </Routes>
     </HashRouter>
   );

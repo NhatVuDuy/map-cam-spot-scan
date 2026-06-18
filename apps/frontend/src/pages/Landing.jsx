@@ -147,7 +147,7 @@ export default function Landing() {
           <span style={{ fontWeight: 700, color: C.text, letterSpacing: "0.02em" }}>CamSpot</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <button onClick={() => navigate("/city-map")} style={{
+          <button onClick={() => navigate("/city/map")} style={{
             background: "none", border: "none", cursor: "pointer",
             color: C.dim, fontSize: "0.85rem", padding: "0.3rem 0.6rem",
           }}>Bản đồ phân bổ</button>
@@ -292,7 +292,7 @@ export default function Landing() {
             desc="Bản đồ nhiệt hiển thị mật độ camera, đường, giao lộ theo từng phường. Click vào phường để xem chi tiết không cần quét lại (cần đã chạy City Scan)."
             bullets={["3 chỉ số: Camera · Đường · Giao lộ", "Toggle mật độ / km² bằng 1 checkbox", "Click phường → Ward Detail tức thì"]}
             cta="📊 Mở bản đồ →"
-            onClick={() => navigate("/city-map")}
+            onClick={() => navigate("/city/map")}
             delay={200}
           />
         </div>

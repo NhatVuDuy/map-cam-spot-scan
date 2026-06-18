@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { aggregateWards } from "../services/cityBatchScan.js";
-import useCityStore from "../store/cityStore.js";
+import { BLOCKS } from "../config/blocks.js";
+import { getScanFile } from "../utils/cityDB.js";
+import useScanFileStore from "../store/scanFileStore.js";
 
 const C = {
   bg: "#060d1a", card: "#0d1829", border: "#1a2e4a",
@@ -39,9 +41,9 @@ function geometryAreaKm2(geometry) {
 
 /* ── metrics definition ─────────────────────────────────────────── */
 const METRIC_TYPES = [
-  { key: "cam",          label: "Camera",   icon: "📹", absKey: "camCount",    densKey: "camDensity",  absUnit: "cam",    densUnit: "cam/km²" },
-  { key: "road",         label: "Đường",    icon: "🛣️", absKey: "roadKm",      densKey: "roadDensity", absUnit: "km",     densUnit: "km/km²"  },
-  { key: "intersection", label: "Giao lõ",  icon: "🔀", absKey: "intersection", densKey: "ixDensity",  absUnit: "nút",    densUnit: "/km²"    },
+  { key: "cam",          label: "Camera (ước tính)", icon: "📹", absKey: "camCount",    densKey: "camDensity",  absUnit: "cam",   densUnit: "cam/km²" },
+  { key: "poi",          label: "Địa điểm",          icon: "📍", absKey: "poiCount",    densKey: "poiDensity",  absUnit: "điểm",  densUnit: "/km²"    },
+  { key: "intersection", label: "Giao lộ",            icon: "🔀", absKey: "intersection",densKey: "ixDensity",   absUnit: "nút",   densUnit: "/km²"    },
 ];
 
 export default function CityMap() {
@@ -58,10 +60,15 @@ export default function CityMap() {
   const metricKey  = densityMode ? currentMT.densKey : currentMT.absKey;
   const metricUnit = densityMode ? currentMT.densUnit : currentMT.absUnit;
 
-  const storeWards    = useCityStore(s => s.wardResults);
-  const initFromCache = useCityStore(s => s.initFromCache);
-  useEffect(() => { initFromCache(); }, []);
-  const wards = storeWards || [];
+  const [wards, setWards] = useState([]);
+  useEffect(() => {
+    async function load() {
+      const scanId = sessionStorage.getItem("city-report-scan");
+      if (!scanId) return;
+      try { const sf = await getScanFile(scanId); if (sf?.wardCounts) setWards(sf.wardCounts); } catch {}
+    }
+    load();
+  }, []);
   const agg = useMemo(() => aggregateWards(wards), [wards]);
   const hasData = wards.filter(w => !w.error).length > 0;
 
@@ -105,9 +112,16 @@ export default function CityMap() {
         .map(f => {
           const w = wardMap[f.properties.code];
           const areaKm2 = geometryAreaKm2(f.geometry);
-          const camCount = w?.camCount || 0;
-          const roadKm   = w ? Math.round(w.roadKm * 10) / 10 : 0;
-          const ix       = w?.byCat?.intersection || 0;
+          const byCat = w?.byCat || {};
+          // Intersection blocks B01-B03, B07, B07-S
+          const ix = (byCat.B01||0)+(byCat.B02||0)+(byCat.B03||0)+(byCat.B07||0)+(byCat["B07-S"]||0);
+          const poiCount = Object.values(byCat).reduce((a,b)=>a+b,0);
+          // Camera estimate per ward from block ratios
+          let camCount = 0;
+          for (const [blockId, cnt] of Object.entries(byCat)) {
+            const block = BLOCKS[blockId];
+            if (block) camCount += cnt * Object.values(block.cams).reduce((a,b)=>a+b,0);
+          }
           return {
             ...f,
             properties: {
@@ -115,25 +129,21 @@ export default function CityMap() {
               areaKm2:      Math.round(areaKm2 * 100) / 100,
               camCount,
               camDensity:   areaKm2 > 0 ? Math.round(camCount / areaKm2) : 0,
-              roadKm,
-              roadDensity:  areaKm2 > 0 ? Math.round((roadKm / areaKm2) * 100) / 100 : 0,
+              poiCount,
+              poiDensity:   areaKm2 > 0 ? Math.round(poiCount / areaKm2) : 0,
               intersection: ix,
               ixDensity:    areaKm2 > 0 ? Math.round(ix / areaKm2) : 0,
-              cam1:         w?.cam1 || 0,
-              camAlley:     w?.camAlley || 0,
-              byCatSchool:  w?.byCat?.school || 0,
-              byCatHosp:    w?.byCat?.hospital || 0,
-              byCatMarket:  w?.byCat?.market || 0,
               hasError:     !!(w?.error),
               hasData:      !!(w && !w.error),
             },
           };
         });
 
-      // Compute max for each metric
+      // Compute max for each metric key (both abs and density)
       const maxes = {};
-      for (const m of METRICS) {
-        maxes[m.key] = Math.max(...wardFeatures.map(f => f.properties[m.key] || 0), 1);
+      for (const m of METRIC_TYPES) {
+        maxes[m.absKey]  = Math.max(...wardFeatures.map(f => f.properties[m.absKey]  || 0), 1);
+        maxes[m.densKey] = Math.max(...wardFeatures.map(f => f.properties[m.densKey] || 0), 1);
       }
       map._maxes = maxes;
 
@@ -235,24 +245,20 @@ export default function CityMap() {
                     <strong style="color:#94a3b8">${p.areaKm2} km²</strong>
                   </div>
                   <div style="display:flex;justify-content:space-between">
-                    <span style="color:#64748b">Camera</span>
-                    <strong style="color:#FBBF24">${Number(p.camCount).toLocaleString("vi-VN")} cam</strong>
+                    <span style="color:#64748b">Camera (ước tính)</span>
+                    <strong style="color:#FBBF24">${Number(p.camCount).toLocaleString("vi-VN")}</strong>
                   </div>
                   <div style="display:flex;justify-content:space-between">
-                    <span style="color:#64748b">Mật độ</span>
-                    <strong style="color:#FBBF24">${Number(p.camDensity).toLocaleString("vi-VN")} cam/km²</strong>
+                    <span style="color:#64748b">Mật độ cam</span>
+                    <strong style="color:#FBBF24">${Number(p.camDensity).toLocaleString("vi-VN")} /km²</strong>
                   </div>
                   <div style="display:flex;justify-content:space-between">
-                    <span style="color:#64748b">Đường</span>
-                    <strong style="color:#38BDF8">${p.roadKm} km · ${p.roadDensity} km/km²</strong>
+                    <span style="color:#64748b">Địa điểm</span>
+                    <strong style="color:#38BDF8">${Number(p.poiCount).toLocaleString("vi-VN")} điểm</strong>
                   </div>
                   <div style="display:flex;justify-content:space-between">
                     <span style="color:#64748b">Giao lộ</span>
                     <strong style="color:#34D399">${Number(p.intersection).toLocaleString("vi-VN")} · ${p.ixDensity}/km²</strong>
-                  </div>
-                  <div style="display:flex;justify-content:space-between">
-                    <span style="color:#64748b">Trường · BV · Chợ</span>
-                    <strong style="color:#94a3b8">${p.byCatSchool} · ${p.byCatHosp} · ${p.byCatMarket}</strong>
                   </div>
                 </div>
                 <button id="open-in-scanner"
@@ -270,14 +276,10 @@ export default function CityMap() {
           const btn = document.getElementById("open-in-scanner");
           if (btn && feature) {
             btn.onclick = () => {
-              // Store boundary for context (name lookup), navigate to Ward Detail
-              sessionStorage.setItem("scanner-boundary", JSON.stringify(feature));
               const code = p.code || feature.properties.code;
-              if (code) {
-                navigate(`/city/ward/${code}`);
-              } else {
-                navigate("/scan");
-              }
+              sessionStorage.setItem("city-details-ward", code);
+              sessionStorage.setItem("scanner-boundary", JSON.stringify(feature));
+              navigate("/city/details");
             };
           }
         }, 50);
@@ -331,10 +333,14 @@ export default function CityMap() {
             Mật độ / km²
           </label>
           <div style={{ width: "1px", height: "18px", background: C.border }} />
+          <button onClick={() => navigate("/city/report")} style={{
+            fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
+            background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`, color: C.cyan,
+          }}>📊 Thống kê</button>
           <button onClick={() => navigate("/city")} style={{
             fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
             background: `${C.violet}18`, border: `1px solid ${C.violet}44`, color: C.violet,
-          }}>← City Hub</button>
+          }}>← Quét thành phố</button>
         </div>
       </nav>
 
@@ -401,10 +407,10 @@ export default function CityMap() {
             <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📊</div>
             <div style={{ fontWeight: 700, color: C.text, marginBottom: "0.4rem" }}>Chưa có dữ liệu quét</div>
             <div style={{ fontSize: "0.8rem", color: C.dim, marginBottom: "1rem" }}>Vào trang Thống kê để quét toàn TP.HCM trước</div>
-            <button onClick={() => navigate("/plan")} style={{
+            <button onClick={() => navigate("/city")} style={{
               background: `linear-gradient(135deg,${C.cyan},${C.violet})`, border: "none",
               borderRadius: "8px", padding: "0.5rem 1.25rem", color: "#fff", fontWeight: 700, cursor: "pointer",
-            }}>Đến trang Thống kê →</button>
+            }}>Đến Quét thành phố →</button>
           </div>
         )}
       </div>
