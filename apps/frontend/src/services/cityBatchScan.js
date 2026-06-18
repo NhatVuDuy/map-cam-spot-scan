@@ -223,7 +223,7 @@ export async function batchScanCityGeneric({
     try {
       const center = wardCenter(ward.geometry);
       const result = await browserScan(
-        { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: { maxResults: 800 } },
+        { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: { maxResults: 800 }, signal },
         () => {}
       );
 

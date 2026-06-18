@@ -138,13 +138,13 @@ const useScanFileStore = create((set, get) => ({
     await get().loadScanFiles();
   },
 
-  async startFresh() {
+  async startFresh(name) {
     const { activeCityMeta, activeCityId } = get();
     if (!activeCityMeta) return;
     const scanId = `${activeCityId}_${Date.now()}`;
     const now = new Date().toISOString();
-    // Create scan file record immediately
-    await upsertScanFile({ id: scanId, cityId: activeCityId, name: "Lần quét mới", folderId: null, createdAt: now, savedAt: now, status: "running", wardCounts: [] });
+    const scanName = name || `Quét ${new Date().toLocaleDateString("vi-VN")}`;
+    await upsertScanFile({ id: scanId, cityId: activeCityId, name: scanName, folderId: null, createdAt: now, savedAt: now, status: "running", wardCounts: [] });
     await clearWardGeometryForScan(scanId);
     await get().loadScanFiles();
     await get()._runScan({ scanId, mode: "full", existingResults: [] });

@@ -80,18 +80,26 @@ function buildOverpassQuery(bbox, blocks) {
   return parts.join("\n");
 }
 
-async function fetchOverpass(query) {
+async function fetchOverpass(query, abortSignal) {
   for (const endpoint of OVERPASS_ENDPOINTS) {
+    if (abortSignal?.aborted) throw new DOMException("Aborted", "AbortError");
     try {
+      const timeoutSignal = AbortSignal.timeout(90_000);
+      const signal = abortSignal
+        ? AbortSignal.any([abortSignal, timeoutSignal])
+        : timeoutSignal;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(100_000),
+        signal,
       });
       if (!res.ok) continue;
       return await res.json();
-    } catch { /* try next */ }
+    } catch (err) {
+      if (err.name === "AbortError") throw err; // propagate user abort immediately
+      /* try next endpoint */
+    }
   }
   throw new Error("Tất cả Overpass endpoints đều thất bại. Vui lòng thử lại.");
 }
@@ -175,7 +183,7 @@ function calcDistance(p, center) {
   return Math.round(Math.sqrt(dLat * dLat + dLng * dLng));
 }
 
-export async function browserScan({ area, blocks, categories, boundary = null, options = {} }, onProgress) {
+export async function browserScan({ area, blocks, categories, boundary = null, options = {}, signal = null }, onProgress) {
   // Backward compat: if old `categories` passed, convert to blocks
   if (!blocks && categories) {
     const mapped = new Set();
@@ -209,7 +217,7 @@ export async function browserScan({ area, blocks, categories, boundary = null, o
 
   onProgress?.("Gửi truy vấn đến Overpass API...");
   const query  = buildOverpassQuery(bbox, blocks);
-  const data   = await fetchOverpass(query);
+  const data   = await fetchOverpass(query, signal);
 
   onProgress?.("Xử lý dữ liệu OSM...");
   const { poiPoints, ways, signalNodes } = normalizeElements(data.elements || [], blocks);
