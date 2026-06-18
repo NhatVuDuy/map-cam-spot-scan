@@ -570,6 +570,7 @@ function Content({ navigate }) {
 export default function Guide() {
   const navigate = useNavigate();
   const [active, setActive] = useState("what-is");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const contentRef = useRef(null);
 
   function handleSelect(id) {
@@ -631,7 +632,23 @@ export default function Guide() {
 
       {/* body — sidebar fixed, content scrolls */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
-        <Sidebar active={active} onSelect={handleSelect} />
+        {sidebarOpen ? (
+          <div style={{ position: "relative", flexShrink: 0, display: "flex" }}>
+            <Sidebar active={active} onSelect={(id) => { handleSelect(id); }} />
+            <button onClick={() => setSidebarOpen(false)} title="Ẩn menu" style={{
+              position: "absolute", top: "0.6rem", right: "0.4rem",
+              background: "none", border: "none", color: C.muted, cursor: "pointer",
+              fontSize: "0.85rem", lineHeight: 1, padding: "2px 4px",
+            }}>‹</button>
+          </div>
+        ) : (
+          <button onClick={() => setSidebarOpen(true)} title="Hiện menu" style={{
+            width: "22px", flexShrink: 0,
+            background: C.sidebar, borderRight: `1px solid ${C.border}`,
+            border: "none", cursor: "pointer", color: C.muted, fontSize: "0.85rem",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>›</button>
+        )}
         <div ref={contentRef} style={{ flex: 1, overflowY: "auto" }}>
           <Content navigate={navigate} />
         </div>
