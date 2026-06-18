@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import AppLayout, { BackBtn } from "../components/layout/AppLayout.jsx";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
 const C = {
@@ -222,36 +223,10 @@ export default function Sys() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh" }}>
-
-      {/* nav */}
-      <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 2rem", height: "52px",
-        background: `${C.bg2}f0`, borderBottom: `1px solid ${C.border}`,
-        backdropFilter: "blur(12px)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
-          <button onClick={() => navigate("/")} style={{ background: "none", border: "none", cursor: "pointer", color: C.dim, fontSize: "0.85rem" }}>← Home</button>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "1rem" }}>📐</span>
-            <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>System Architecture</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button onClick={() => navigate("/guide")} style={{
-            background: `${C.amber}18`, border: `1px solid ${C.amber}44`,
-            borderRadius: "7px", padding: "0.35rem 0.9rem",
-            color: C.amber, fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
-          }}>📘 Hướng dẫn</button>
-          <button onClick={() => navigate("/scan")} style={{
-            background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
-            border: "none", borderRadius: "8px", padding: "0.4rem 1.1rem",
-            color: "#fff", fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
-          }}>Open Scanner →</button>
-        </div>
-      </nav>
+    <AppLayout
+      featureName="📐 Kiến trúc hệ thống"
+      backButton={<BackBtn onClick={() => navigate("/")}>← Home</BackBtn>}
+    >
 
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "3rem 2rem" }}>
 
@@ -635,26 +610,7 @@ export default function Sys() {
           </div>
         </div>
 
-        {/* bottom nav */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "1rem", paddingTop: "1rem" }}>
-          <button onClick={() => navigate("/")} style={{
-            background: C.card, border: `1px solid ${C.border}`,
-            borderRadius: "8px", padding: "0.6rem 1.5rem",
-            color: C.dim, cursor: "pointer", fontSize: "0.85rem",
-          }}>← Home</button>
-          <button onClick={() => navigate("/guide")} style={{
-            background: `${C.amber}18`, border: `1px solid ${C.amber}44`,
-            borderRadius: "8px", padding: "0.6rem 1.5rem",
-            color: C.amber, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
-          }}>📘 Hướng dẫn</button>
-          <button onClick={() => navigate("/scan")} style={{
-            background: `linear-gradient(135deg, ${C.cyan}, ${C.violet})`,
-            border: "none", borderRadius: "8px", padding: "0.6rem 1.5rem",
-            color: "#fff", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
-          }}>Open Scanner →</button>
-        </div>
-
       </div>
-    </div>
+    </AppLayout>
   );
 }

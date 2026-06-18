@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import AppLayout, { BackBtn, NavBtn } from "../components/layout/AppLayout.jsx";
 import MapView from "../components/map/MapView.jsx";
 import RightPanel from "../components/layout/RightPanel.jsx";
 import useScanStore from "../store/scanStore.js";
@@ -128,46 +129,23 @@ export default function WardDetail() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", width: "100vw", overflow: "hidden", background: C.bg }}>
-      {/* ── Compact header ──────────────────────────────────────────── */}
-      <header style={{
-        display: "flex", alignItems: "center", gap: "0.75rem",
-        padding: "0 1rem", height: "44px", flexShrink: 0,
-        background: "#0b1425", borderBottom: `1px solid ${C.border}`,
-      }}>
-        <button onClick={() => navigate("/city/map")} style={{
-          background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: "0.8rem", padding: "0",
-        }}>← Bản đồ</button>
-        <span style={{ color: C.border }}>·</span>
-        <span style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text }}>
-          {status === "loading" ? "Đang tải..." : wardName}
-        </span>
-        {cachedStats && status === "loaded" && (
-          <span style={{
-            fontSize: "0.65rem", color: "#64748b", background: "#0d1829",
-            border: `1px solid ${C.border}`, borderRadius: "4px", padding: "2px 7px",
-          }}>
-            {Object.values(cachedStats.byCat || {}).reduce((a,b)=>a+b,0)} điểm
-          </span>
-        )}
-        <div style={{ flex: 1 }} />
-        {status === "loaded" && (
-          <span style={{ fontSize: "0.65rem", color: C.green }}>✓ Từ cache IDB</span>
-        )}
-        {!rightOpen && (
-          <button onClick={() => setRightOpen(true)} style={{
-            fontSize: "0.7rem", padding: "3px 9px", borderRadius: "5px", cursor: "pointer",
-            background: `${C.cyan}18`, border: `1px solid ${C.cyan}44`, color: C.cyan,
-          }}>Kết quả</button>
-        )}
-        <button onClick={() => navigate("/city")} style={{
-          fontSize: "0.72rem", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontWeight: 700,
-          background: `${C.amber}18`, border: `1px solid ${C.amber}44`, color: C.amber,
-        }}>City Hub</button>
-      </header>
-
+    <AppLayout
+      featureName={status === "loading" ? "Đang tải..." : wardName}
+      backButton={<BackBtn onClick={() => navigate("/city/map")}>← Bản đồ</BackBtn>}
+      navButtons={
+        <>
+          {cachedStats && status === "loaded" && (
+            <span style={{ fontSize: "0.65rem", color: C.green }}>✓ {Object.values(cachedStats.byCat || {}).reduce((a,b)=>a+b,0)} điểm</span>
+          )}
+          {!rightOpen && (
+            <NavBtn color={C.cyan} onClick={() => setRightOpen(true)}>Kết quả</NavBtn>
+          )}
+        </>
+      }
+      style={{ height: "100dvh" }}
+    >
       {/* ── Map + right panel ────────────────────────────────────────── */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
         <div style={{ flex: 1, position: "relative", minWidth: 0, overflow: "hidden" }}>
           {status === "loading" && (
             <div style={{
@@ -179,6 +157,6 @@ export default function WardDetail() {
         </div>
         {rightOpen && <RightPanel onCollapse={() => setRightOpen(false)} />}
       </div>
-    </div>
+    </AppLayout>
   );
 }
