@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useScanner } from "../../hooks/useScanner.js";
 import { useExport } from "../../hooks/useExport.js";
-import { CATEGORIES } from "../../utils/categories.js";
+import { BLOCKS, BLOCK_KEYS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
@@ -19,23 +19,11 @@ const C = {
   red:    "#F87171",
 };
 
-/* ─── tiny helpers ────────────────────────────────────────────────────────── */
-function PanelSection({ title, action, children }) {
-  return (
-    <div style={{ borderBottom: `1px solid ${C.border}` }}>
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0.55rem 0.85rem",
-        background: C.bg2,
-        borderBottom: `1px solid ${C.border}`,
-      }}>
-        <span style={{ fontSize: "0.68rem", fontWeight: 700, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em" }}>{title}</span>
-        {action}
-      </div>
-      <div style={{ padding: "0.6rem 0.85rem" }}>{children}</div>
-    </div>
-  );
-}
+const btnStyle = {
+  fontSize: "0.65rem", padding: "2px 8px",
+  background: "none", border: `1px solid ${C.border}`,
+  color: C.muted, borderRadius: "4px", cursor: "pointer",
+};
 
 /* ─── stat badge ──────────────────────────────────────────────────────────── */
 function StatBadge({ label, value, color = C.cyan }) {
@@ -51,20 +39,15 @@ function StatBadge({ label, value, color = C.cyan }) {
   );
 }
 
-/* ─── mini bar chart ──────────────────────────────────────────────────────── */
+/* ─── mini bar ────────────────────────────────────────────────────────────── */
 function MiniBar({ label, value, max, color, total }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
+  const pct   = max > 0 ? (value / max) * 100 : 0;
   const share = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
       <div style={{ fontSize: "0.72rem", color: C.dim, width: "90px", flexShrink: 0, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
       <div style={{ flex: 1, height: "6px", background: `${color}20`, borderRadius: "3px", overflow: "hidden" }}>
-        <div style={{
-          height: "100%", width: `${pct}%`,
-          background: `linear-gradient(90deg, ${color}, ${color}99)`,
-          borderRadius: "3px",
-          transition: "width 0.6s ease",
-        }} />
+        <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}99)`, borderRadius: "3px", transition: "width 0.6s ease" }} />
       </div>
       <div style={{ fontSize: "0.68rem", color: C.muted, width: "26px", textAlign: "right", flexShrink: 0 }}>{value}</div>
       <div style={{ fontSize: "0.62rem", color: `${color}aa`, width: "28px", textAlign: "right", flexShrink: 0 }}>{share}%</div>
@@ -72,59 +55,18 @@ function MiniBar({ label, value, max, color, total }) {
   );
 }
 
-/* ─── camera type info ────────────────────────────────────────────────────── */
-const CAM_TYPE_META = {
-  cam1:      { label: "CAM1 — Đường dài",       color: "#38BDF8" },
-  cam2:      { label: "CAM2 — Ngã3 + đèn",      color: "#FBBF24" },
-  cam22:     { label: "CAM2.2 — Ngã4 + đèn",    color: "#FBBF24" },
-  cam21:     { label: "CAM2.1 — Ngã3 không đèn", color: "#FB923C" },
-  cam23:     { label: "CAM2.3 — Ngã4 không đèn", color: "#FB923C" },
-  cam_alley: { label: "CAM Hẻm — Đầu hẻm",      color: "#34D399" },
-};
+/* ─── block visibility filter (Lọc tab) ──────────────────────────────────── */
+function BlockFilter() {
+  const { points, filter, setFilter, hiddenBlocks, toggleBlockVisibility } = useScanner();
 
-/* ─── camera display toggle (used in Lọc tab) ────────────────────────────── */
-function CameraToggle() {
-  const { cameras, showCameras, setShowCameras } = useScanner();
-  if (!cameras || cameras.length === 0) return null;
+  // Count per block from actual points
+  const counts = {};
+  for (const p of points) {
+    const k = p.blockId || p.category;
+    counts[k] = (counts[k] || 0) + 1;
+  }
 
-  return (
-    <div style={{
-      padding: "0.65rem 0.85rem",
-      borderBottom: `1px solid ${C.border}`,
-    }}>
-      <div style={{ fontSize: "0.67rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
-        Vị trí Camera
-      </div>
-      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-        <div
-          onClick={() => setShowCameras(!showCameras)}
-          style={{
-            width: "36px", height: "20px", borderRadius: "10px", position: "relative",
-            background: showCameras ? C.cyan : C.muted,
-            transition: "background 0.2s", flexShrink: 0, cursor: "pointer",
-          }}
-        >
-          <div style={{
-            position: "absolute", top: "3px",
-            left: showCameras ? "18px" : "3px",
-            width: "14px", height: "14px", borderRadius: "50%",
-            background: "white", transition: "left 0.2s",
-          }} />
-        </div>
-        <span style={{ fontSize: "0.77rem", color: showCameras ? C.text : C.muted, userSelect: "none" }}>
-          {showCameras ? "Đang hiển thị" : "Đã ẩn"} · <span style={{ color: C.cyan }}>{cameras.length} camera</span>
-        </span>
-      </label>
-    </div>
-  );
-}
-
-/* ─── result legend (filter by category in results) ──────────────────────── */
-function ResultLegend() {
-  const { stats, filter, setFilter, points } = useScanner();
-  const allKeys = Object.keys(CATEGORIES);
   const hasResults = points.length > 0;
-
   if (!hasResults) {
     return (
       <div style={{ padding: "2rem 1rem", textAlign: "center", color: C.muted, fontSize: "0.8rem" }}>
@@ -137,7 +79,7 @@ function ResultLegend() {
   return (
     <div style={{ padding: "0.6rem 0.85rem" }}>
       <div style={{ fontSize: "0.67rem", color: C.muted, marginBottom: "0.75rem", lineHeight: 1.5 }}>
-        Click vào loại để lọc danh sách kết quả.
+        Bật/tắt hiển thị từng loại. Click tên để lọc danh sách.
         {filter && (
           <button onClick={() => setFilter(null)} style={{
             marginLeft: "0.5rem", fontSize: "0.62rem", padding: "1px 7px",
@@ -146,32 +88,45 @@ function ResultLegend() {
           }}>✕ Bỏ lọc</button>
         )}
       </div>
-      {allKeys.map((key) => {
-        const cat = CATEGORIES[key];
-        const count = stats[key] || 0;
+      {BLOCK_KEYS.map((key) => {
+        const block   = BLOCKS[key];
+        const count   = counts[key] || 0;
         if (!count) return null;
-        const isActive = filter === key;
+        const hidden   = hiddenBlocks.includes(key);
+        const isFilter = filter === key;
         return (
-          <div
-            key={key}
-            onClick={() => setFilter(isActive ? null : key)}
-            style={{
-              display: "flex", alignItems: "center", gap: "0.6rem",
-              padding: "0.45rem 0.6rem", marginBottom: "0.25rem",
-              borderRadius: "7px", cursor: "pointer",
-              background: isActive ? `${cat.color}18` : `${cat.color}07`,
-              border: `1px solid ${isActive ? cat.color + "55" : cat.color + "20"}`,
-              transition: "all 0.15s",
-            }}
-          >
-            <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: "0.78rem", color: isActive ? C.text : C.dim, fontWeight: isActive ? 600 : 400 }}>
-              {cat.label}
+          <div key={key} style={{
+            display: "flex", alignItems: "center", gap: "0.45rem",
+            padding: "0.35rem 0.5rem", marginBottom: "3px",
+            borderRadius: "7px",
+            background: isFilter ? `${block.color}18` : hidden ? `${block.color}05` : `${block.color}09`,
+            border: `1px solid ${isFilter ? block.color + "55" : block.color + "20"}`,
+            opacity: hidden ? 0.5 : 1,
+            transition: "all 0.15s",
+          }}>
+            {/* eye toggle */}
+            <button
+              onClick={() => toggleBlockVisibility(key)}
+              title={hidden ? "Hiện" : "Ẩn"}
+              style={{
+                flexShrink: 0, background: "none", border: "none",
+                cursor: "pointer", fontSize: "0.85rem", lineHeight: 1,
+                color: hidden ? C.muted : block.color, padding: "0 2px",
+              }}
+            >{hidden ? "🙈" : "👁"}</button>
+            {/* color dot */}
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: block.color, flexShrink: 0 }} />
+            {/* block code + name */}
+            <span
+              style={{ flex: 1, fontSize: "0.74rem", color: isFilter ? C.text : C.dim, userSelect: "none", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              onClick={() => setFilter(isFilter ? null : key)}
+            >
+              <strong style={{ color: block.color, marginRight: "3px" }}>{key}</strong>{block.name}
             </span>
             <span style={{
-              fontSize: "0.68rem", padding: "1px 7px",
-              background: `${cat.color}22`, border: `1px solid ${cat.color}44`,
-              borderRadius: "100px", color: cat.color, fontWeight: 700,
+              fontSize: "0.62rem", padding: "1px 6px",
+              background: `${block.color}20`, border: `1px solid ${block.color}40`,
+              borderRadius: "100px", color: block.color, fontWeight: 700, flexShrink: 0,
             }}>{count}</span>
           </div>
         );
@@ -180,90 +135,22 @@ function ResultLegend() {
   );
 }
 
-/* ─── category filter ─────────────────────────────────────────────────────── */
-function CategoryFilter() {
-  const { categories, setCategories, filter, setFilter, stats } = useScanner();
-  const allKeys = Object.keys(CATEGORIES);
-
-  const toggle = (key) => {
-    if (categories.includes(key)) setCategories(categories.filter(k => k !== key));
-    else setCategories([...categories, key]);
-  };
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: "0.35rem", marginBottom: "0.55rem" }}>
-        <button style={btnStyle} onClick={() => setCategories(allKeys)}>Tất cả</button>
-        <button style={btnStyle} onClick={() => setCategories([])}>Bỏ chọn</button>
-        {filter && (
-          <button style={{ ...btnStyle, color: C.cyan, borderColor: `${C.cyan}44` }} onClick={() => setFilter(null)}>✕ Bỏ lọc</button>
-        )}
-      </div>
-      {allKeys.map((key) => {
-        const cat = CATEGORIES[key];
-        const count = stats[key] || 0;
-        const isActive = categories.includes(key);
-        const isFiltered = filter === key;
-        return (
-          <div key={key} style={{
-            display: "flex", alignItems: "center", gap: "0.45rem",
-            padding: "0.28rem 0.35rem",
-            borderRadius: "5px",
-            background: isFiltered ? `${cat.color}14` : "transparent",
-            cursor: "pointer",
-            marginBottom: "1px",
-            transition: "background 0.12s",
-          }}
-            onMouseEnter={e => { if (!isFiltered) e.currentTarget.style.background = `${cat.color}0a`; }}
-            onMouseLeave={e => { if (!isFiltered) e.currentTarget.style.background = "transparent"; }}
-          >
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={() => toggle(key)}
-              style={{ cursor: "pointer", accentColor: cat.color, margin: 0 }}
-              onClick={e => e.stopPropagation()}
-            />
-            <div style={{
-              width: "7px", height: "7px", borderRadius: "50%",
-              background: cat.color, flexShrink: 0,
-            }} />
-            <span
-              style={{ flex: 1, fontSize: "0.77rem", color: isActive ? C.text : C.muted, userSelect: "none" }}
-              onClick={() => setFilter(isFiltered ? null : key)}
-            >{cat.label}</span>
-            {count > 0 && (
-              <span style={{
-                fontSize: "0.62rem", padding: "1px 6px",
-                background: `${cat.color}20`, border: `1px solid ${cat.color}40`,
-                borderRadius: "100px", color: cat.color, fontWeight: 700,
-              }}>{count}</span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-const btnStyle = {
-  fontSize: "0.65rem", padding: "2px 8px",
-  background: "none", border: `1px solid ${C.border}`,
-  color: C.muted, borderRadius: "4px", cursor: "pointer",
-};
-
 /* ─── results list ────────────────────────────────────────────────────────── */
 function ResultsList() {
-  const { points, filter, selectedPoint, setSelectedPoint, removePoint } = useScanner();
+  const { points, filter, hiddenBlocks, selectedPoint, setSelectedPoint, removePoint } = useScanner();
   const [confirmId, setConfirmId] = useState(null);
   const confirmPoint = confirmId ? points.find(p => p.id === confirmId) : null;
   const { exportCSV, exportGeoJSON } = useExport();
 
-  const filtered = filter ? points.filter(p => p.category === filter) : points;
+  const filtered = points.filter(p => {
+    const blockId = p.blockId || p.category;
+    if (hiddenBlocks.includes(blockId)) return false;
+    if (filter && blockId !== filter && p.category !== filter) return false;
+    return true;
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* toolbar */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0.45rem 0.85rem",
@@ -279,7 +166,6 @@ function ResultsList() {
         </div>
       </div>
 
-      {/* list */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {filtered.length === 0 ? (
           <div style={{ padding: "2rem 1rem", textAlign: "center", color: C.muted, fontSize: "0.8rem" }}>
@@ -288,7 +174,10 @@ function ResultsList() {
           </div>
         ) : (
           filtered.map((p) => {
-            const cat = CATEGORIES[p.category];
+            const blockId  = p.blockId || p.category;
+            const block    = BLOCKS[blockId];
+            const color    = block?.color || "#888";
+            const symbol   = block?.symbol || "";
             const isSelected = selectedPoint?.id === p.id;
             return (
               <div
@@ -303,37 +192,31 @@ function ResultsList() {
                   transition: "background 0.12s",
                   display: "flex", alignItems: "flex-start", gap: "0.5rem",
                 }}
-                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = `${cat?.color || C.cyan}08`; }}
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = `${color}08`; }}
                 onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
               >
-                <div style={{
-                  width: "7px", height: "7px", borderRadius: "50%",
-                  background: cat?.color || C.cyan, flexShrink: 0, marginTop: "5px",
-                }} />
+                <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: color, flexShrink: 0, marginTop: "5px" }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontSize: "0.78rem", color: isSelected ? C.amber : C.text,
                     fontWeight: isSelected ? 600 : 400,
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>{p.name}
+                  }}>
+                    {block && <span style={{ color, fontWeight: 700, marginRight: "4px", fontSize: "0.7rem" }}>[{blockId}]</span>}
+                    {p.name}
                     {p.source === "custom" && (
                       <span style={{ marginLeft: "5px", fontSize: "0.6rem", padding: "1px 4px", background: `${C.green}22`, color: C.green, borderRadius: "3px" }}>thủ công</span>
                     )}
                   </div>
                   <div style={{ fontSize: "0.67rem", color: C.muted, marginTop: "2px" }}>
-                    {cat?.label} · {p.distanceM >= 1000 ? `${(p.distanceM / 1000).toFixed(1)}km` : `${p.distanceM}m`}
-                    {p.score !== undefined && <span style={{ color: `${C.amber}99`, marginLeft: "4px" }}>★{p.score}</span>}
+                    {symbol && <span style={{ marginRight: "3px" }}>{symbol}</span>}
+                    {block?.name || p.category} · {p.distanceM >= 1000 ? `${(p.distanceM / 1000).toFixed(1)}km` : `${p.distanceM}m`}
                   </div>
                 </div>
                 <button
                   title="Xóa điểm"
                   onClick={e => { e.stopPropagation(); setConfirmId(p.id); }}
-                  style={{
-                    flexShrink: 0, background: "none", border: "none",
-                    color: C.dim, cursor: "pointer", fontSize: "0.85rem",
-                    padding: "2px 4px", borderRadius: "3px", lineHeight: 1,
-                    opacity: 0.5,
-                  }}
+                  style={{ flexShrink: 0, background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: "0.85rem", padding: "2px 4px", borderRadius: "3px", lineHeight: 1, opacity: 0.5 }}
                   onMouseEnter={e => { e.currentTarget.style.color = C.red; e.currentTarget.style.opacity = "1"; }}
                   onMouseLeave={e => { e.currentTarget.style.color = C.dim; e.currentTarget.style.opacity = "0.5"; }}
                 >✕</button>
@@ -356,16 +239,133 @@ function ResultsList() {
   );
 }
 
+/* ─── stats tab ───────────────────────────────────────────────────────────── */
+function StatsTab() {
+  const { points, loading } = useScanner();
+  const total = points.length;
+
+  // Count per block
+  const blockCounts = {};
+  for (const p of points) {
+    const k = p.blockId || p.category;
+    blockCounts[k] = (blockCounts[k] || 0) + 1;
+  }
+
+  // Calculate camera estimates per cam type
+  const camEstimates = {};
+  let totalCams = 0;
+  for (const [blockId, count] of Object.entries(blockCounts)) {
+    const block = BLOCKS[blockId];
+    if (!block) continue;
+    for (const camType of CAM_TYPES) {
+      const perSite = block.cams[camType] || 0;
+      if (perSite > 0) {
+        camEstimates[camType] = (camEstimates[camType] || 0) + count * perSite;
+        totalCams += count * perSite;
+      }
+    }
+  }
+
+  const activeBlocks = BLOCK_KEYS.filter(k => blockCounts[k] > 0);
+  const maxCount = Math.max(...activeBlocks.map(k => blockCounts[k] || 0), 1);
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto" }}>
+      {/* summary */}
+      <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <StatBadge label="Tổng vị trí" value={loading ? "…" : total} color={C.cyan} />
+          <StatBadge label="Cam đề xuất" value={loading ? "…" : totalCams} color={C.amber} />
+        </div>
+      </div>
+
+      {/* block distribution */}
+      {total > 0 && (
+        <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.7rem" }}>Phân bố theo loại</div>
+          {activeBlocks.map(k => (
+            <MiniBar
+              key={k}
+              label={`${k} ${BLOCKS[k].symbol}`}
+              value={blockCounts[k] || 0}
+              max={maxCount}
+              color={BLOCKS[k].color}
+              total={total}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* cam estimates by type */}
+      {totalCams > 0 && (
+        <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "0.7rem" }}>
+            <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Camera đề xuất (thiết kế)</div>
+            <span style={{ fontSize: "1rem", fontWeight: 800, color: C.amber }}>{totalCams}</span>
+          </div>
+          {CAM_TYPES.map(t => {
+            const count = camEstimates[t] || 0;
+            if (!count) return null;
+            return (
+              <MiniBar
+                key={t}
+                label={t}
+                value={count}
+                max={Math.max(...Object.values(camEstimates), 1)}
+                color={CAM_COLORS[t] || C.cyan}
+                total={totalCams}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* per-block cam breakdown */}
+      {total > 0 && (
+        <div style={{ padding: "0.75rem 0.85rem" }}>
+          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>Chi tiết theo vị trí</div>
+          {activeBlocks.map(blockId => {
+            const block = BLOCKS[blockId];
+            const cnt   = blockCounts[blockId] || 0;
+            const total_block_cams = CAM_TYPES.reduce((s, t) => s + (block.cams[t] || 0) * cnt, 0);
+            if (!total_block_cams) return null;
+            return (
+              <div key={blockId} style={{
+                marginBottom: "0.55rem", padding: "0.4rem 0.55rem",
+                background: `${block.color}0a`, border: `1px solid ${block.color}22`,
+                borderRadius: "6px",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.2rem" }}>
+                  <span style={{ fontSize: "0.73rem", color: block.color, fontWeight: 700 }}>{block.symbol} {blockId}</span>
+                  <span style={{ fontSize: "0.68rem", color: C.dim }}>{cnt} vị trí × {camTotal(block)} cam = <strong style={{ color: C.amber }}>{total_block_cams}</strong></span>
+                </div>
+                <div style={{ fontSize: "0.66rem", color: C.muted, lineHeight: 1.6 }}>
+                  {CAM_TYPES.filter(t => block.cams[t] > 0).map(t => (
+                    <span key={t} style={{ marginRight: "6px" }}>
+                      <span style={{ color: CAM_COLORS[t] }}>{t}</span>×{block.cams[t]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {total === 0 && !loading && (
+        <div style={{ padding: "2rem 1rem", textAlign: "center", color: C.muted, fontSize: "0.8rem" }}>
+          Chưa có dữ liệu.<br />
+          <span style={{ fontSize: "0.72rem" }}>Nhấn Scan để tìm vị trí.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── right panel ─────────────────────────────────────────────────────────── */
 export default function RightPanel({ fullscreen = false, onCollapse }) {
-  const { points, stats, loading, cameras } = useScanner();
-  const [tab, setTab] = useState("results"); // "results" | "stats"
-
-  const allKeys = Object.keys(CATEGORIES);
-  const total = points.length;
-  const maxCount = Math.max(...allKeys.map(k => stats[k] || 0), 1);
-
-  const intersectionPct = total > 0 ? Math.round(((stats.intersection || 0) / total) * 100) : 0;
+  const { loading } = useScanner();
+  const [tab, setTab] = useState("results");
 
   return (
     <div style={{
@@ -378,7 +378,7 @@ export default function RightPanel({ fullscreen = false, onCollapse }) {
       minHeight: fullscreen ? "100%" : undefined,
     }}>
 
-      {/* ── tab bar + collapse button ────────────────────────────────────── */}
+      {/* ── tab bar ──────────────────────────────────────────────────────── */}
       <div style={{
         display: "flex", background: C.bg2,
         borderBottom: `1px solid ${C.border}`,
@@ -418,105 +418,13 @@ export default function RightPanel({ fullscreen = false, onCollapse }) {
         </div>
       )}
 
-      {tab === "stats" && (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          {/* summary badges */}
-          <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
-              <StatBadge label="Tổng điểm" value={loading ? "…" : total} color={C.cyan} />
-              <StatBadge label="Giao lộ" value={loading ? "…" : (stats.intersection || 0)} color="#FF6B6B" />
-            </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <StatBadge label="Trường học" value={stats.school || 0} color="#339AF0" />
-              <StatBadge label="Bệnh viện" value={stats.hospital || 0} color="#FF8787" />
-            </div>
-          </div>
-
-          {/* donut-style ratio */}
-          {total > 0 && (
-            <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.6rem" }}>Tỉ lệ</div>
-              <div style={{ height: "8px", borderRadius: "4px", overflow: "hidden", display: "flex", marginBottom: "0.6rem" }}>
-                {allKeys.map(k => {
-                  const cnt = stats[k] || 0;
-                  if (!cnt) return null;
-                  return (
-                    <div key={k} title={`${CATEGORIES[k].label}: ${cnt}`} style={{
-                      flex: cnt, background: CATEGORIES[k].color,
-                      transition: "flex 0.5s ease",
-                    }} />
-                  );
-                })}
-              </div>
-              {/* legend */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem 0.5rem" }}>
-                {allKeys.filter(k => stats[k] > 0).map(k => (
-                  <div key={k} style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "0.64rem", color: C.muted }}>
-                    <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: CATEGORIES[k].color, flexShrink: 0 }} />
-                    {CATEGORIES[k].label.split(" ")[0]}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* bar chart */}
-          <div style={{ padding: "0.75rem 0.85rem", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.7rem" }}>Phân bố theo loại</div>
-            {total === 0 ? (
-              <div style={{ color: C.muted, fontSize: "0.78rem", textAlign: "center", padding: "1rem 0" }}>Chưa có dữ liệu</div>
-            ) : (
-              allKeys.map(k => (
-                <MiniBar
-                  key={k}
-                  label={CATEGORIES[k].label}
-                  value={stats[k] || 0}
-                  max={maxCount}
-                  color={CATEGORIES[k].color}
-                  total={total}
-                />
-              ))
-            )}
-          </div>
-
-          {/* camera stats */}
-          {cameras && cameras.length > 0 && (() => {
-            const camByType = {};
-            for (const c of cameras) camByType[c.type] = (camByType[c.type] || 0) + 1;
-            const camMax = Math.max(...Object.values(camByType), 1);
-            return (
-              <div style={{ padding: "0.75rem 0.85rem" }}>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "0.7rem" }}>
-                  <div style={{ fontSize: "0.68rem", fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Camera đề xuất</div>
-                  <span style={{ fontSize: "1rem", fontWeight: 800, color: C.cyan }}>{cameras.length}</span>
-                </div>
-                {Object.entries(CAM_TYPE_META).map(([type, meta]) => {
-                  const count = camByType[type] || 0;
-                  if (!count) return null;
-                  return (
-                    <MiniBar
-                      key={type}
-                      label={meta.label.split(" — ")[0]}
-                      value={count}
-                      max={camMax}
-                      color={meta.color}
-                      total={cameras.length}
-                    />
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
-      )}
+      {tab === "stats" && <StatsTab />}
 
       {tab === "categories" && (
         <div style={{ flex: 1, overflowY: "auto" }}>
-          <CameraToggle />
-          <ResultLegend />
+          <BlockFilter />
         </div>
       )}
-
     </div>
   );
 }

@@ -206,11 +206,7 @@ export async function browserScan({ area, categories, boundary = null, options =
     highway: w.highway,
   }));
 
-  // Camera placement (runs regardless of selected categories)
-  onProgress?.("Tính toán vị trí camera...");
-  const cameras = ways.length > 0
-    ? planAllCameras({ intersections: detectedIntersections, ways: rawRoads, signalNodes, center, radiusM: useBoundary ? undefined : radiusM })
-    : [];
+  const cameras = []; // planAllCameras disabled — kept in cameraPlacement.js for future use
 
   const roads = includeRoads
     ? rawRoads.map((w) => ({

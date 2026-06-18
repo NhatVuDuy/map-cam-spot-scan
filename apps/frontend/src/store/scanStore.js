@@ -51,6 +51,7 @@ const useScanStore = create((set, get) => ({
   progress: "",
   error: null,
   filter: null,
+  hiddenBlocks: [],   // block ids to hide from map + results list
   hoveredPoint: null,
   selectedPoint: null,
   showCameras: true,
@@ -61,7 +62,11 @@ const useScanStore = create((set, get) => ({
   setArea: (area) => set({ area: { ...get().area, ...area } }),
   setCategories: (categories) => set({ categories }),
   setBoundary: (boundary) => set({ boundary }),
-  setMaxResults: (maxResults) => set({ maxResults: Number(maxResults) }),
+  setMaxResults: (maxResults) => set({ maxResults: maxResults === "all" ? Infinity : Number(maxResults) }),
+  toggleBlockVisibility: (blockId) => {
+    const h = get().hiddenBlocks;
+    set({ hiddenBlocks: h.includes(blockId) ? h.filter(b => b !== blockId) : [...h, blockId] });
+  },
 
   addPoint: (point) => {
     const points = [point, ...get().points];
@@ -109,19 +114,7 @@ const useScanStore = create((set, get) => ({
 
     set({ intersectionOverrides: newOverrides, points });
 
-    if (rawIntersections.length > 0) {
-      const enriched = rawIntersections.map(ix =>
-        newOverrides[ix.id] ? { ...ix, ...newOverrides[ix.id] } : ix
-      );
-      const cameras = planAllCameras({
-        intersections: enriched,
-        ways: rawWays,
-        signalNodes: rawSignalNodes,
-        center: { lat: area.lat, lng: area.lng },
-        radiusM: area.radiusM,
-      });
-      set({ cameras });
-    }
+    // planAllCameras disabled — kept in cameraPlacement.js for future use
   },
 
   // ─── Scan ────────────────────────────────────────────────────────────────
