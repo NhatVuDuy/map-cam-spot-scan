@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import useScanStore from "../../store/scanStore.js";
 import { CATEGORIES } from "../../utils/categories.js";
-import { BLOCKS, SQUARE_BLOCKS } from "../../config/blocks.js";
+import { BLOCKS, SQUARE_BLOCKS, CIRCLE_BLOCKS } from "../../config/blocks.js";
 import { circleGeoJSON } from "../../utils/geo.js";
 import { bearingBetween } from "../../utils/bearing.js";
 import MapContextMenu from "./MapContextMenu.jsx";
@@ -480,12 +480,12 @@ function MapViewInner() {
       // ── Points (POIs only, intersections excluded) ─────────────────────────
       map.addSource("points", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
 
-      const poiFilter = ["!=", ["get", "category"], "intersection"];
       const squareLiteral = ["literal", SQUARE_BLOCKS];
-      // Circle markers: intersections excluded AND square-block POIs excluded
-      const circlePoiFilter = ["all", poiFilter, ["!", ["in", ["get", "blockId"], squareLiteral]]];
-      // Square markers: intersections excluded AND only square-block POIs
-      const squarePoiFilter = ["all", poiFilter, ["in", ["get", "blockId"], squareLiteral]];
+      const circleLiteral = ["literal", CIRCLE_BLOCKS];
+      // Circle markers: B01–B07-S (intersections, alleys, etc.)
+      const circlePoiFilter = ["in", ["get", "blockId"], circleLiteral];
+      // Square markers: B08–B13 (places & infrastructure)
+      const squarePoiFilter = ["in", ["get", "blockId"], squareLiteral];
 
       map.addLayer({
         id: "points-halo",
@@ -556,130 +556,47 @@ function MapViewInner() {
         },
       });
 
+      // Label: only show [Bxx] at high zoom (unobtrusive)
       map.addLayer({
         id: "points-label",
         type: "symbol",
         source: "points",
-        filter: poiFilter,
-        minzoom: 14,
+        minzoom: 15,
         layout: {
-          "text-field": ["get", "label"],
-          "text-size": 11,
-          "text-offset": [0, 1.4],
+          "text-field": ["case", ["has", "blockId"], ["concat", "[", ["get", "blockId"], "]"], ""],
+          "text-size": 10,
+          "text-offset": [0, 1.5],
           "text-anchor": "top",
           "text-optional": true,
+          "text-allow-overlap": false,
         },
         paint: {
-          "text-color": "#f1f5f9",
+          "text-color": ["get", "color"],
           "text-halo-color": "#000000",
           "text-halo-width": 2,
           "text-halo-blur": 0,
+          "text-opacity": 0.9,
         },
       });
 
-      // ── Intersection shape icons (quad / tri / alley only — minor uses circles) ──
-      const ixFilter        = ["==", ["get", "category"], "intersection"];
-      const ixShapeFilter   = ["all", ixFilter, ["!=", ["coalesce", ["get", "intersectionShape"], "minor"], "minor"]];
-      const ixMinorFilter   = ["all", ixFilter, ["==", ["coalesce", ["get", "intersectionShape"], "minor"], "minor"]];
-
-      // Minor intersections: filled circles sized by road class.
-      // IMPORTANT: interpolate stop outputs must be literal numbers in MapLibre GL JS.
-      // Use step on zoom with a nested case on roadClass — both with literal outputs.
+      // Signal dot: yellow dot on top of any point that has a traffic signal
       map.addLayer({
-        id: "intersections-minor",
+        id: "points-signal",
         type: "circle",
         source: "points",
-        filter: ixMinorFilter,
-        paint: {
-          "circle-color": "#FF6B6B",
-          "circle-radius": [
-            "step", ["zoom"],
-            // zoom < 12
-            ["case",
-              [">=", ["coalesce", ["get", "roadClass"], 0], 4], 5,
-              [">=", ["coalesce", ["get", "roadClass"], 0], 2], 4,
-              3
-            ],
-            12,
-            // zoom 12–15
-            ["case",
-              [">=", ["coalesce", ["get", "roadClass"], 0], 4], 8,
-              [">=", ["coalesce", ["get", "roadClass"], 0], 2], 6,
-              4
-            ],
-            15,
-            // zoom >= 15
-            ["case",
-              [">=", ["coalesce", ["get", "roadClass"], 0], 4], 14,
-              [">=", ["coalesce", ["get", "roadClass"], 0], 2], 10,
-              6
-            ]
-          ],
-          "circle-opacity": 0.9,
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
-
-      map.addLayer({
-        id: "intersections-symbol",
-        type: "symbol",
-        source: "points",
-        filter: ixShapeFilter,
-        layout: {
-          "icon-image": ["concat", "ix-", ["coalesce", ["get", "intersectionShape"], "minor"]],
-          // icon-size: MapLibre GL JS does not support interpolate expressions as
-          // case-expression outputs. Use a flat interpolate with literal stops only.
-          "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.6, 13, 0.9, 16, 1.3],
-          // Rotate alley rectangle toward the alley arm
-          "icon-rotate": [
-            "case",
-            ["==", ["coalesce", ["get", "intersectionShape"], ""], "alley"],
-            ["coalesce", ["get", "alleyBearing"], 0],
-            0,
-          ],
-          "icon-rotation-alignment": "map",
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-        },
-      });
-
-      // Traffic signal dot: yellow filled circle (only on quad/tri with signal)
-      map.addLayer({
-        id: "intersections-signal",
-        type: "circle",
-        source: "points",
-        filter: ["all", ixShapeFilter, ["==", ["get", "hasSignal"], true]],
+        filter: ["==", ["get", "hasSignal"], true],
         paint: {
           "circle-color": "#FBBF24",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 6],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 5],
           "circle-opacity": 1,
           "circle-stroke-width": 1.5,
           "circle-stroke-color": "#0d1829",
         },
       });
 
-      // Label for intersections (shown at higher zoom)
-      map.addLayer({
-        id: "intersections-label",
-        type: "symbol",
-        source: "points",
-        filter: ixFilter,
-        minzoom: 15,
-        layout: {
-          "text-field": ["get", "label"],
-          "text-size": 10,
-          "text-offset": [0, 1.6],
-          "text-anchor": "top",
-          "text-optional": true,
-        },
-        paint: {
-          "text-color": "#fca5a5",
-          "text-halo-color": "#000000",
-          "text-halo-width": 2,
-          "text-halo-blur": 0,
-        },
-      });
+      // ── Legacy intersection layers kept for reference (never match) ──────────
+      // Old system used category="intersection" + intersectionShape="quad/tri/alley"
+      // New system uses blockId (B01-B07-S) for all points — these layers are inert.
 
       // ── Camera placement layer ─────────────────────────────────────────────
       map.addSource("cameras", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -698,37 +615,9 @@ function MapViewInner() {
         },
       });
 
-      // ── Highlight selected intersection ───────────────────────────────────
-      map.addLayer({
-        id: "intersections-selected",
-        type: "circle",
-        source: "points",
-        filter: ["==", ["get", "id"], "__none__"],
-        paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 14, 16, 22],
-          "circle-color": "transparent",
-          "circle-stroke-width": 3,
-          "circle-stroke-color": "#FACC15",
-          "circle-opacity": 0,
-        },
-      });
+      // points-selected covers all point types (circle and square alike)
 
-      // ── Click: intersection icons (both shape symbols and minor circles) ────
-      const openIxPopup = (props, lngLat) => {
-        const distFmt = props.distanceM >= 1000
-          ? `${(props.distanceM / 1000).toFixed(2)} km`
-          : `${props.distanceM} m`;
-        if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
-        activeIxRef.current = { id: props.id, lngLat };
-        popupRef.current = new maplibregl.Popup({ offset: 12, className: "cam-popup", maxWidth: "260px" })
-          .setLngLat(lngLat)
-          .setHTML(buildIntersectionPopupHTML({ props, distFmt }))
-          .addTo(map);
-        popupRef.current.on("close", () => { popupRef.current = null; activeIxRef.current = null; });
-      };
-
-      // Aim-mode interceptor: if user clicked "Đặt hướng" on an alley popup,
-      // the next map click sets the alley arm direction.
+      // Aim-mode interceptor (for alley bearing — kept for future use)
       map.on("click", (e) => {
         const aim = aimingRef.current;
         if (!aim) return;
@@ -738,18 +627,6 @@ function MapViewInner() {
         aimingRef.current = null;
         map.getCanvas().style.cursor = "";
       });
-
-      // Reuse same handler for both symbol and circle layers
-      map.on("click", "intersections-symbol", (e) => {
-        if (aimingRef.current) return; // aim-mode in progress, skip popup
-        openIxPopup(e.features[0].properties, e.lngLat);
-      });
-      map.on("click", "intersections-minor",  (e) => {
-        if (aimingRef.current) return;
-        openIxPopup(e.features[0].properties, e.lngLat);
-      });
-      map.on("mouseenter", "intersections-minor",  () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "intersections-minor",  () => { map.getCanvas().style.cursor = ""; });
 
       // ── Click: POI circle ──────────────────────────────────────────────────
       const openPoiPopup = (e) => {
@@ -873,18 +750,14 @@ function MapViewInner() {
         geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         properties: {
           id: p.id,
-          category: p.category,
+          category: p.blockId || p.category,
           name: p.name,
-          label: (p.blockId ? `[${p.blockId}] ` : "") + (p.name || ""),
           distanceM: p.distanceM,
           score: p.score ?? 0,
           blockId: p.blockId || null,
           color: (p.blockId && BLOCKS[p.blockId]?.color) || CATEGORIES[p.category]?.color || "#888888",
           roadClass: p.roadClass ?? null,
-          // Intersection-specific
-          intersectionShape: p.intersectionShape ?? null,
-          alleyBearing:      p.alleyBearing ?? 0,
-          hasSignal:         p.hasSignal === true,
+          hasSignal: p.hasSignal === true,
           lat: p.lat,
           lon: p.lng,
         },
@@ -932,15 +805,12 @@ function MapViewInner() {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
     const poiOpacity = filter
-      ? ["case", ["==", ["get", "category"], filter], 0.95, 0.1]
+      ? ["case", ["==", ["get", "blockId"], filter], 0.95, 0.15]
       : 0.95;
-    const ixOpacity = filter === "intersection" ? 1 : (filter ? 0.15 : 1);
-    map.setPaintProperty("points-circle",       "circle-opacity", poiOpacity);
-    map.setPaintProperty("points-halo",         "circle-opacity", filter ? ["case", ["==", ["get", "category"], filter], 0.22, 0.03] : 0.22);
-    map.setPaintProperty("points-label",        "text-opacity",   filter ? ["case", ["==", ["get", "category"], filter], 1, 0.1] : 1);
-    map.setPaintProperty("intersections-signal", "circle-opacity", ixOpacity);
-    map.setPaintProperty("intersections-minor",  "circle-opacity", ixOpacity);
-    map.setLayoutProperty("intersections-symbol", "visibility", ixOpacity > 0 ? "visible" : "none");
+    map.setPaintProperty("points-circle", "circle-opacity", poiOpacity);
+    map.setPaintProperty("points-halo",   "circle-opacity", filter ? ["case", ["==", ["get", "blockId"], filter], 0.22, 0.03] : 0.22);
+    map.setPaintProperty("points-label",  "text-opacity",   filter ? ["case", ["==", ["get", "blockId"], filter], 0.9, 0.1] : 0.9);
+    map.setPaintProperty("points-signal", "circle-opacity", filter ? ["case", ["==", ["get", "blockId"], filter], 1, 0.1] : 1);
   }, [mapReady, filter]);
 
   // ── 6. Highlight selected point ──────────────────────────────────────────────
@@ -954,17 +824,13 @@ function MapViewInner() {
 
     if (!selectedPoint) {
       map.setFilter("points-selected", ["==", ["get", "id"], "__none__"]);
-      map.setFilter("intersections-selected", ["==", ["get", "id"], "__none__"]);
       return;
     }
 
     map.setFilter("points-selected", ["==", ["get", "id"], selectedPoint.id]);
-    map.setFilter("intersections-selected", selectedPoint
-      ? ["==", ["get", "id"], selectedPoint.id]
-      : ["==", ["get", "id"], "__none__"]);
     map.flyTo({ center: [selectedPoint.lng, selectedPoint.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
 
-    if (selectedPoint.category !== "intersection") {
+    {
       const cat     = CATEGORIES[selectedPoint.category];
       const distFmt = selectedPoint.distanceM >= 1000
         ? `${(selectedPoint.distanceM / 1000).toFixed(2)} km`

@@ -60,6 +60,52 @@ function CoordBadge({ lat, lng }) {
 const ROAD_BLOCKS  = ["B01","B02","B03","B04","B05","B06","B07","B07-S"];
 const PLACE_BLOCKS = ["B08","B09","B10","B11","B12","B13"];
 
+const BLOCK_GROUPS = [
+  { label: "Giao lộ & Đường", keys: ROAD_BLOCKS },
+  { label: "Địa điểm & Công trình", keys: PLACE_BLOCKS },
+];
+
+function BlockPicker({ value, onChange }) {
+  return (
+    <div style={{
+      maxHeight: "160px", overflowY: "auto", marginBottom: "8px",
+      border: `1px solid ${C.border}`, borderRadius: "6px",
+    }}>
+      {BLOCK_GROUPS.map(group => (
+        <div key={group.label}>
+          <div style={{
+            padding: "2px 8px", fontSize: "0.58rem", fontWeight: 700,
+            color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em",
+            background: "#060d1a", borderBottom: `1px solid ${C.border}`,
+          }}>{group.label}</div>
+          {group.keys.map(k => {
+            const b = BLOCKS[k];
+            const active = value === k;
+            return (
+              <div key={k} onClick={() => onChange(k)} style={{
+                display: "flex", alignItems: "center", gap: "5px",
+                padding: "4px 8px", cursor: "pointer",
+                background: active ? `${b.color}1a` : "transparent",
+                borderLeft: `2px solid ${active ? b.color : "transparent"}`,
+                transition: "background 0.1s",
+              }}>
+                <span style={{ color: b.color, fontSize: "0.65rem", flexShrink: 0 }}>
+                  {b.shape === "square" ? "■" : "●"}
+                </span>
+                <span style={{ color: b.color, fontWeight: 700, fontSize: "0.62rem", flexShrink: 0 }}>{k}</span>
+                <span style={{
+                  color: active ? "#e2e8f0" : C.muted, fontSize: "0.68rem",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>{b.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AddPointForm({ lat, lng, onAdd, onCancel }) {
   const [blockId, setBlockId] = useState("B08");
   const [name, setName]       = useState("");
@@ -86,18 +132,6 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
         Thêm điểm thủ công
       </div>
 
-      {/* Selected block preview */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: "6px",
-        marginBottom: "8px", padding: "5px 8px",
-        background: `${block.color}15`, border: `1px solid ${block.color}44`,
-        borderRadius: "6px",
-      }}>
-        <span style={{ color: block.color, fontSize: "0.75rem" }}>{block.shape === "square" ? "■" : "●"}</span>
-        <span style={{ color: block.color, fontWeight: 700, fontSize: "0.7rem" }}>{blockId}</span>
-        <span style={{ color: "#cbd5e1", fontSize: "0.7rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.name}</span>
-      </div>
-
       <input
         autoFocus
         placeholder="Tên địa điểm (tùy chọn)"
@@ -112,34 +146,14 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
         }}
       />
 
-      <select
-        value={blockId}
-        onChange={e => setBlockId(e.target.value)}
-        style={{
-          width: "100%", padding: "5px 8px", marginBottom: "8px",
-          background: C.bg2, border: `1px solid ${C.border}`,
-          borderRadius: "5px", color: C.text, fontSize: "0.72rem", outline: "none",
-          boxSizing: "border-box",
-        }}
-      >
-        <optgroup label="Giao lộ & Đường">
-          {ROAD_BLOCKS.map(k => (
-            <option key={k} value={k}>● {k} — {BLOCKS[k].name}</option>
-          ))}
-        </optgroup>
-        <optgroup label="Địa điểm & Công trình">
-          {PLACE_BLOCKS.map(k => (
-            <option key={k} value={k}>■ {k} — {BLOCKS[k].name}</option>
-          ))}
-        </optgroup>
-      </select>
+      <BlockPicker value={blockId} onChange={setBlockId} />
 
       <div style={{ display: "flex", gap: "6px" }}>
         <button onClick={submit} style={{
-          flex: 1, padding: "5px", background: `${C.cyan}22`,
-          border: `1px solid ${C.cyan}55`, borderRadius: "5px",
-          color: C.cyan, fontSize: "0.75rem", cursor: "pointer", fontWeight: 600,
-        }}>✓ Thêm</button>
+          flex: 1, padding: "5px", background: `${block.color}22`,
+          border: `1px solid ${block.color}55`, borderRadius: "5px",
+          color: block.color, fontSize: "0.75rem", cursor: "pointer", fontWeight: 600,
+        }}>✓ Thêm {blockId}</button>
         <button onClick={onCancel} style={{
           padding: "5px 10px", background: "none",
           border: `1px solid ${C.border}`, borderRadius: "5px",
