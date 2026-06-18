@@ -1,7 +1,6 @@
 import { browserScan } from "./browserScan.js";
 import { writeWardGeometry } from "../utils/wardGeometryDB.js";
-
-const CATEGORIES = ["intersection", "school", "hospital", "park", "market", "hotel", "conference", "government"];
+import { DEFAULT_BLOCKS } from "../config/blocks.js";
 const DELAY_MS = 1600;
 const STORAGE_KEY = "hcm-city-scan-v1";
 
@@ -74,7 +73,7 @@ async function scanWard(ward) {
   const { name, code } = ward.properties;
   const center = wardCenter(ward.geometry);
   const result = await browserScan(
-    { area: center, categories: CATEGORIES, boundary: ward, options: { maxResults: 800 } },
+    { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: { maxResults: 800 } },
     () => {}
   );
   // Persist full geometry to IndexedDB (async, non-blocking for count return)
@@ -224,7 +223,7 @@ export async function batchScanCityGeneric({
     try {
       const center = wardCenter(ward.geometry);
       const result = await browserScan(
-        { area: center, categories: CATEGORIES, boundary: ward, options: { maxResults: 800 } },
+        { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: { maxResults: 800 } },
         () => {}
       );
 

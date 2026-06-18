@@ -1,27 +1,30 @@
 import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
 import { planAllCameras, pickAlleyArmBearing } from "../algorithms/cameraPlacement.js";
-import { CATEGORIES } from "../utils/categories.js";
+import { DEFAULT_BLOCKS } from "../config/blocks.js";
 import { importSession } from "../utils/sessionFile.js";
 import {
   listSessions, readSession, writeSession,
   deleteSession, renameSession, downloadSession,
 } from "../utils/opfs.js";
 
-const DEFAULT_CATEGORIES = Object.keys(CATEGORIES);
+const DEFAULT_BLOCKS_LIST = DEFAULT_BLOCKS;
 
 const SHAPE_LABEL = {
-  quad:  "Ngã tư",
-  tri:   "Ngã ba",
-  alley: "Đầu hẻm",
-  minor: "Giao cắt",
+  quad:       "Ngã tư",
+  tri:        "Ngã ba",
+  alley:      "Đầu hẻm",
+  alley_minor:"Giao cắt hẻm",
+  minor:      "Giao cắt",
 };
 
 const useScanStore = create((set, get) => ({
   // --- Input ---
   source: { id: "overpass", config: {} },
   area: { lat: 10.7726, lng: 106.677, radiusM: 1000 },
-  categories: DEFAULT_CATEGORIES,
+  blocks: DEFAULT_BLOCKS_LIST,
+  categories: DEFAULT_BLOCKS_LIST, // backward compat alias
+  designMode: false,
   boundary: null,
   maxResults: 500,
 
@@ -59,7 +62,9 @@ const useScanStore = create((set, get) => ({
   setSource: (source) => set({ source }),
   setShowCameras: (showCameras) => set({ showCameras }),
   setArea: (area) => set({ area: { ...get().area, ...area } }),
-  setCategories: (categories) => set({ categories }),
+  setBlocks: (blocks) => set({ blocks, categories: blocks }),
+  setCategories: (blocks) => set({ blocks, categories: blocks }), // backward compat alias
+  setDesignMode: (v) => set({ designMode: v }),
   setBoundary: (boundary) => set({ boundary }),
   setMaxResults: (maxResults) => set({ maxResults: Number(maxResults) }),
 
@@ -90,7 +95,7 @@ const useScanStore = create((set, get) => ({
     let effectiveAlleyBearing = null;
     if (rawIx) {
       const merged = { ...rawIx, ...newEntry };
-      if ((merged.intersectionShape || rawIx.intersectionShape) === "alley") {
+      if (["alley","alley_minor"].includes(merged.intersectionShape || rawIx.intersectionShape)) {
         effectiveAlleyBearing = pickAlleyArmBearing(merged);
       }
     }
@@ -126,7 +131,7 @@ const useScanStore = create((set, get) => ({
 
   // ─── Scan ────────────────────────────────────────────────────────────────
   runScan: async () => {
-    const { area, categories, boundary, maxResults } = get();
+    const { area, blocks, boundary, maxResults } = get();
     set({
       loading: true, error: null, progress: "Đang khởi động...",
       points: [], roads: [], cameras: [],
@@ -140,7 +145,7 @@ const useScanStore = create((set, get) => ({
 
     try {
       const result = await browserScan(
-        { area, categories, boundary, options: { maxResults, includeRoads: true } },
+        { area, blocks, boundary, options: { maxResults, includeRoads: true } },
         (msg) => set({ progress: msg })
       );
 
@@ -323,6 +328,8 @@ const useScanStore = create((set, get) => ({
       boundary:         data.boundary         ?? null,
       bbox:             null,
       stats,
+      blocks:           data.blocks           || DEFAULT_BLOCKS_LIST,
+      designMode:       data.designMode       || false,
       loading:          false,
       progress:         `Đã tải từ cache (${(data.cameras || []).length} camera)`,
       error:            null,

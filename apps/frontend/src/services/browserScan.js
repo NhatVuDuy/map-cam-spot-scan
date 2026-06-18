@@ -1,9 +1,10 @@
 import { getBBox } from "../utils/geo.js";
-import { classifyTags } from "../algorithms/classifier.js";
+import { classifyTagsToBlock } from "../algorithms/classifier.js";
 import { detectIntersections } from "../algorithms/intersection.js";
-import { planAllCameras } from "../algorithms/cameraPlacement.js";
+import { planAllCameras, pickAlleyArmBearing } from "../algorithms/cameraPlacement.js";
 import { withinRadius, deduplicatePoints, scorePoints } from "../algorithms/spatialFilter.js";
 import { pointInPolygon, geometryBBox } from "../utils/pointInPolygon.js";
+import { DEFAULT_BLOCKS, CATEGORY_TO_BLOCK, shapeToBlock } from "../config/blocks.js";
 
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
@@ -11,57 +12,69 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.private.coffee/api/interpreter",
 ];
 
-const CATEGORY_OSM = {
-  school:     { amenity: ["school", "university", "college", "kindergarten"] },
-  hospital:   { amenity: ["hospital", "clinic", "health_centre"] },
-  park:       { leisure: ["park", "garden"] },
-  market:     { amenity: ["marketplace"], shop: ["supermarket", "mall"] },
-  hotel:      { tourism: ["hotel", "motel", "hostel", "guest_house"] },
-  conference: { amenity: ["conference_centre", "events_venue", "community_centre"] },
-  government: { amenity: ["townhall", "police", "fire_station", "courthouse", "embassy"] },
-};
-
-// Include service/living_street for alley entrances (đầu hẻm)
 const HIGHWAY_TYPES = [
   "trunk", "primary", "secondary", "tertiary",
   "residential", "unclassified", "living_street", "service",
 ];
 
-/**
- * Build Overpass QL query.
- * KEY FIX: POIs use "out center tags" (only need centroid),
- *          Roads use "out geom tags" (need ALL node coordinates for intersection detection).
- * Without "out geom", road ways only have a center point → no node-sharing possible.
- */
-function buildOverpassQuery(bbox, categories, includeRoads) {
+// Blocks that need road intersection detection
+const INTERSECTION_BLOCKS = new Set(["B01","B02","B03","B07","B07-S"]);
+// Blocks that need road ways (road segments, roundabouts, bridge/tunnel also from road data)
+const ROAD_BLOCKS = new Set(["B01","B02","B03","B04","B05","B07","B07-S","B12"]);
+
+// POI block → OSM tag filters
+const BLOCK_POI_OSM = {
+  B06: [
+    `node["barrier"~"toll_booth|border_control"]`,
+    `node["amenity"="customs"]`,
+    `way["amenity"="customs"]`,
+  ],
+  B08: [
+    `node["amenity"~"marketplace|conference_centre|events_venue|community_centre"]`,
+    `way["amenity"~"marketplace|conference_centre|events_venue|community_centre"]`,
+    `node["leisure"~"park|garden|stadium"]`,
+    `way["leisure"~"park|garden|stadium"]`,
+    `node["tourism"~"hotel|motel|hostel|guest_house|attraction"]`,
+    `way["tourism"~"hotel|motel|hostel|guest_house|attraction"]`,
+    `node["shop"~"supermarket|mall"]`,
+    `way["shop"~"supermarket|mall"]`,
+  ],
+  B09: [
+    `node["amenity"~"bus_station|ferry_terminal"]`,
+    `way["amenity"~"bus_station|ferry_terminal"]`,
+    `node["railway"~"station|halt|tram_stop"]`,
+    `node["aeroway"~"terminal|aerodrome"]`,
+    `way["aeroway"~"terminal|aerodrome"]`,
+  ],
+  B10: [
+    `node["amenity"~"school|university|college|kindergarten|hospital|clinic|health_centre|townhall|police|fire_station|courthouse|embassy"]`,
+    `way["amenity"~"school|university|college|kindergarten|hospital|clinic|health_centre|townhall|police|fire_station|courthouse|embassy"]`,
+  ],
+  B11: [
+    `way["landuse"~"industrial|industrial_estate"]`,
+    `relation["landuse"~"industrial|industrial_estate"]`,
+  ],
+};
+
+function buildOverpassQuery(bbox, blocks) {
   const [s, w, n, e] = bbox;
   const bboxStr = `${s},${w},${n},${e}`;
-  const poiCategories = categories.filter((c) => c !== "intersection");
-  const needRoads = categories.includes("intersection") || includeRoads;
-
-  const tagFilters = [];
-  for (const cat of poiCategories) {
-    const mapping = CATEGORY_OSM[cat];
-    if (!mapping) continue;
-    for (const [key, vals] of Object.entries(mapping)) {
-      const regex = vals.join("|");
-      tagFilters.push(`node["${key}"~"${regex}"](${bboxStr});`);
-      tagFilters.push(`way["${key}"~"${regex}"](${bboxStr});`);
-    }
-  }
-
   const parts = [`[out:json][timeout:90];`];
 
-  if (tagFilters.length > 0) {
-    parts.push(`(\n  ${tagFilters.join("\n  ")}\n)->.pois;\n.pois out center tags;`);
+  // Road ways (needed for B01-B05, B07, B07-S, B12 and roundabout B04)
+  const needsRoads = blocks.some(b => ROAD_BLOCKS.has(b));
+  if (needsRoads) {
+    parts.push(
+      `way["highway"~"${HIGHWAY_TYPES.join("|")}"](${bboxStr})->.roads;\n.roads out geom tags;`,
+      `node["highway"="traffic_signals"](${bboxStr});\nout body;`
+    );
   }
 
-  if (needRoads) {
-    // "out geom tags" returns full geometry (every node lat/lon) for each way
-    // This is essential for intersection detection
-    parts.push(`way["highway"~"${HIGHWAY_TYPES.join("|")}"](${bboxStr})->.roads;\n.roads out geom tags;`);
-    // Traffic signal nodes for camera placement
-    parts.push(`node["highway"="traffic_signals"](${bboxStr});\nout body;`);
+  // POI queries per block
+  for (const [blockId, filters] of Object.entries(BLOCK_POI_OSM)) {
+    if (!blocks.includes(blockId)) continue;
+    const tagged = filters.map(f => `${f}(${bboxStr});`).join("\n  ");
+    parts.push(`(\n  ${tagged}\n)->.${blockId.replace("-","_")};\n.${blockId.replace("-","_")} out center tags;`);
   }
 
   return parts.join("\n");
@@ -78,59 +91,82 @@ async function fetchOverpass(query) {
       });
       if (!res.ok) continue;
       return await res.json();
-    } catch {
-      // try next endpoint
-    }
+    } catch { /* try next */ }
   }
   throw new Error("Tất cả Overpass endpoints đều thất bại. Vui lòng thử lại.");
 }
 
-function normalizeElements(elements, categories) {
+function wayCentroid(geometry) {
+  if (!geometry || geometry.length === 0) return null;
+  const lat = geometry.reduce((s, n) => s + n.lat, 0) / geometry.length;
+  const lon = geometry.reduce((s, n) => s + n.lon, 0) / geometry.length;
+  return { lat, lon };
+}
+
+function normalizeElements(elements, blocks) {
   const poiPoints = [];
-  const ways = [];
+  const ways      = [];
   const signalNodes = [];
+  const roundabouts = [];
 
   for (const el of elements) {
     const tags = el.tags || {};
 
-    // Traffic signal node
+    // Traffic signal
     if (el.type === "node" && tags.highway === "traffic_signals") {
       signalNodes.push({ lat: el.lat, lng: el.lon });
       continue;
     }
 
-    // Road way: has highway tag + geometry (from "out geom tags")
+    // Road way
     if (el.type === "way" && tags.highway) {
       if (el.geometry && el.geometry.length >= 2) {
-        ways.push({ id: el.id, geometry: el.geometry, highway: tags.highway });
+        ways.push({ id: el.id, geometry: el.geometry, highway: tags.highway, tags });
+        // B04: roundabout
+        if (tags.junction === "roundabout" && blocks.includes("B04")) {
+          const c = wayCentroid(el.geometry);
+          if (c) roundabouts.push({
+            id: `osm-roundabout-${el.id}`,
+            lat: c.lat, lng: c.lon, blockId: "B04",
+            category: "roundabout",
+            name: tags.name || "Vòng xuyến",
+            distanceM: 0, source: "osm", tags,
+          });
+        }
+        // B12: bridge or tunnel
+        if ((tags.bridge === "yes" || tags.tunnel === "yes") && blocks.includes("B12")) {
+          const c = wayCentroid(el.geometry);
+          if (c) poiPoints.push({
+            id: `osm-roadfeat-${el.id}`,
+            lat: c.lat, lng: c.lon, blockId: "B12",
+            category: tags.bridge === "yes" ? "bridge" : "tunnel",
+            name: tags.name || (tags.bridge === "yes" ? "Cầu vượt" : "Hầm chui"),
+            distanceM: 0, source: "osm", tags,
+          });
+        }
       }
       continue;
     }
 
-    // POI node or way (with center from "out center tags")
+    // POI node or way (center)
     let lat, lng;
-    if (el.type === "node") {
-      lat = el.lat; lng = el.lon;
-    } else if (el.center) {
-      lat = el.center.lat; lng = el.center.lon;
-    } else {
-      continue;
-    }
+    if (el.type === "node") { lat = el.lat; lng = el.lon; }
+    else if (el.center) { lat = el.center.lat; lng = el.center.lon; }
+    else continue;
 
-    const category = classifyTags(tags);
-    if (!category || !categories.includes(category)) continue;
+    const blockId = classifyTagsToBlock(tags);
+    if (!blockId || !blocks.includes(blockId)) continue;
 
     poiPoints.push({
       id: `osm-${el.type}-${el.id}`,
-      lat, lng, category,
-      name: tags.name || tags["name:vi"] || tags["name:en"] || `${category} (OSM)`,
-      distanceM: 0,
-      source: "osm",
-      tags,
+      lat, lng, blockId,
+      category: blockId, // use blockId as category for display
+      name: tags.name || tags["name:vi"] || tags["name:en"] || blockId,
+      distanceM: 0, source: "osm", tags,
     });
   }
 
-  return { poiPoints, ways, signalNodes };
+  return { poiPoints: [...poiPoints, ...roundabouts], ways, signalNodes };
 }
 
 function calcDistance(p, center) {
@@ -139,7 +175,22 @@ function calcDistance(p, center) {
   return Math.round(Math.sqrt(dLat * dLat + dLng * dLng));
 }
 
-export async function browserScan({ area, categories, boundary = null, options = {} }, onProgress) {
+export async function browserScan({ area, blocks, categories, boundary = null, options = {} }, onProgress) {
+  // Backward compat: if old `categories` passed, convert to blocks
+  if (!blocks && categories) {
+    const mapped = new Set();
+    for (const cat of categories) {
+      if (cat === "intersection") {
+        ["B01","B02","B03","B07","B07-S"].forEach(b => mapped.add(b));
+      } else {
+        const b = CATEGORY_TO_BLOCK[cat];
+        if (b) mapped.add(b);
+      }
+    }
+    blocks = [...mapped];
+  }
+  blocks = blocks || DEFAULT_BLOCKS;
+
   const { lat, lng, radiusM } = area;
   const { maxResults = 500, includeRoads = true } = options;
   const center = { lat, lng };
@@ -157,88 +208,88 @@ export async function browserScan({ area, categories, boundary = null, options =
   }
 
   onProgress?.("Gửi truy vấn đến Overpass API...");
-  const query = buildOverpassQuery(bbox, categories, includeRoads);
-  const data = await fetchOverpass(query);
+  const query  = buildOverpassQuery(bbox, blocks);
+  const data   = await fetchOverpass(query);
 
   onProgress?.("Xử lý dữ liệu OSM...");
-  const { poiPoints, ways, signalNodes } = normalizeElements(data.elements || [], categories);
+  const { poiPoints, ways, signalNodes } = normalizeElements(data.elements || [], blocks);
 
-  // Spatial filter
+  // Spatial filter POIs
   let points;
   if (useBoundary) {
     onProgress?.("Lọc theo ranh giới hành chính...");
     points = poiPoints
-      .filter((p) => pointInPolygon([p.lng, p.lat], boundary.geometry))
-      .map((p) => ({ ...p, distanceM: calcDistance(p, center) }));
+      .filter(p => pointInPolygon([p.lng, p.lat], boundary.geometry))
+      .map(p => ({ ...p, distanceM: calcDistance(p, center) }));
   } else {
     points = withinRadius(poiPoints, center, radiusM);
   }
-  points = deduplicatePoints(points);
 
-  // Intersection detection (now works: ways have geometry from "out geom tags")
+  // Intersection detection (B01/B02/B03/B07/B07-S)
   let detectedIntersections = [];
-  if (categories.includes("intersection") && ways.length > 0) {
+  const needsIntersections = blocks.some(b => INTERSECTION_BLOCKS.has(b));
+  if (needsIntersections && ways.length > 0) {
     onProgress?.(`Phát hiện giao lộ từ ${ways.length} đoạn đường...`);
     const allIntersections = detectIntersections(ways, center, useBoundary ? 999_999 : radiusM);
     detectedIntersections = useBoundary
-      ? allIntersections.filter((p) => pointInPolygon([p.lng, p.lat], boundary.geometry))
+      ? allIntersections.filter(p => pointInPolygon([p.lng, p.lat], boundary.geometry))
       : allIntersections;
 
-    // Pre-compute hasSignal for each intersection (60 m snap radius)
+    // Pre-compute hasSignal
     const SIGNAL_RADIUS = 60;
     for (const ix of detectedIntersections) {
       ix.hasSignal = signalNodes.some(
         sn => Math.hypot((ix.lat - sn.lat) * 111320, (ix.lng - sn.lng) * 111320 * Math.cos(ix.lat * Math.PI / 180)) <= SIGNAL_RADIUS
       );
+      // Assign blockId
+      ix.blockId = shapeToBlock(ix.intersectionShape, ix.hasSignal, ix.roadClass);
     }
 
-    points = deduplicatePoints([...points, ...detectedIntersections]);
+    // Filter to only selected intersection blocks
+    const filteredIntersections = detectedIntersections.filter(ix =>
+      ix.blockId && blocks.includes(ix.blockId)
+    );
+    points = deduplicatePoints([...points, ...filteredIntersections]);
+  } else {
+    points = deduplicatePoints(points);
   }
 
   const allScoredPoints = scorePoints(points, center);
-  const totalBeforeCap = allScoredPoints.length;
+  const totalBeforeCap  = allScoredPoints.length;
   points = allScoredPoints.slice(0, maxResults);
 
-  // Build roads GeoJSON-ready geometry
-  const rawRoads = ways.map((w) => ({
+  // Road ways for rendering + CAM1 placement
+  const rawRoads = ways.map(w => ({
     id: w.id,
-    geometry: w.geometry.map((n) => [n.lon, n.lat]),
+    geometry: w.geometry.map(n => [n.lon, n.lat]),
     highway: w.highway,
   }));
 
-  // Camera placement (runs regardless of selected categories)
   onProgress?.("Tính toán vị trí camera...");
-  const cameras = ways.length > 0
+  const cameras = (ways.length > 0 && blocks.some(b => ROAD_BLOCKS.has(b)))
     ? planAllCameras({ intersections: detectedIntersections, ways: rawRoads, signalNodes, center, radiusM: useBoundary ? undefined : radiusM })
     : [];
 
   const roads = includeRoads
-    ? rawRoads.map((w) => ({
-        id: `osm-way-${w.id}`,
-        geometry: w.geometry,
-        highway: w.highway,
-      }))
+    ? rawRoads.map(w => ({ id: `osm-way-${w.id}`, geometry: w.geometry, highway: w.highway }))
     : [];
 
-  const byCategory = {};
-  for (const p of points) byCategory[p.category] = (byCategory[p.category] || 0) + 1;
+  const byBlock = {};
+  for (const p of points) {
+    const k = p.blockId || p.category;
+    byBlock[k] = (byBlock[k] || 0) + 1;
+  }
 
   return {
     meta: {
       source: useBoundary ? "overpass-boundary" : "overpass-browser",
       boundaryName: boundary?.properties?.name,
       durationMs: Date.now() - t0,
-      bbox,
-      totalFound: points.length,
-      totalBeforeCap,
-      byCategory,
-      signalCount: signalNodes.length,
-      cameraCount: cameras.length,
+      bbox, totalFound: points.length, totalBeforeCap,
+      byCategory: byBlock,  // keep key name for backward compat
+      signalCount: signalNodes.length, cameraCount: cameras.length,
     },
-    points,
-    roads,
-    cameras,
-    // Raw data kept for camera recomputation when user overrides intersection type/signal
+    points, roads, cameras,
     rawIntersections: detectedIntersections,
     rawWays: rawRoads,
     rawSignalNodes: signalNodes,
