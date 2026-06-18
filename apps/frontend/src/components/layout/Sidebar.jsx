@@ -4,7 +4,7 @@ import AdminSearch from "../scanner/AdminSearch.jsx";
 import AreaSelector from "../scanner/AreaSelector.jsx";
 import ScanButton from "../scanner/ScanButton.jsx";
 import useScanStore from "../../store/scanStore.js";
-import { CATEGORIES } from "../../utils/categories.js";
+import { BLOCKS, BLOCK_KEYS, DEFAULT_BLOCKS } from "../../config/blocks.js";
 import { useScanner } from "../../hooks/useScanner.js";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
@@ -60,52 +60,55 @@ function Sep({ label }) {
 
 /* ─── query category filter (what to scan) ────────────────────────────────── */
 function QueryCategories() {
-  const { categories, setCategories } = useScanner();
-  const allKeys = Object.keys(CATEGORIES);
+  const { blocks, setBlocks } = useScanner();
+  const allKeys = BLOCK_KEYS;
 
   const toggle = (key) => {
-    if (categories.includes(key)) setCategories(categories.filter(k => k !== key));
-    else setCategories([...categories, key]);
+    if (blocks.includes(key)) setBlocks(blocks.filter(k => k !== key));
+    else setBlocks([...blocks, key]);
   };
 
   return (
     <div>
       <div style={{ display: "flex", gap: "0.3rem", marginBottom: "0.45rem" }}>
         <button
-          onClick={() => setCategories(allKeys)}
+          onClick={() => setBlocks(DEFAULT_BLOCKS)}
           style={{ fontSize: "0.62rem", padding: "2px 7px", background: "none", border: `1px solid ${C.border}`, color: C.muted, borderRadius: "4px", cursor: "pointer" }}
         >Tất cả</button>
         <button
-          onClick={() => setCategories([])}
+          onClick={() => setBlocks([])}
           style={{ fontSize: "0.62rem", padding: "2px 7px", background: "none", border: `1px solid ${C.border}`, color: C.muted, borderRadius: "4px", cursor: "pointer" }}
         >Bỏ chọn</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.05rem" }}>
         {allKeys.map((key) => {
-          const cat = CATEGORIES[key];
-          const checked = categories.includes(key);
+          const block = BLOCKS[key];
+          const checked = blocks.includes(key);
+          const isManual = block.detect === "none";
           return (
             <label key={key} style={{
               display: "flex", alignItems: "center", gap: "0.35rem",
               padding: "0.22rem 0.3rem", borderRadius: "4px",
-              cursor: "pointer",
-              background: checked ? `${cat.color}0e` : "transparent",
+              cursor: isManual ? "not-allowed" : "pointer",
+              background: checked ? `${block.color}0e` : "transparent",
+              opacity: isManual ? 0.5 : 1,
               transition: "background 0.12s",
             }}>
               <input
                 type="checkbox"
                 checked={checked}
-                onChange={() => toggle(key)}
-                style={{ cursor: "pointer", accentColor: cat.color, margin: 0, flexShrink: 0 }}
+                onChange={() => !isManual && toggle(key)}
+                disabled={isManual}
+                style={{ cursor: isManual ? "not-allowed" : "pointer", accentColor: block.color, margin: 0, flexShrink: 0 }}
               />
-              <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
-              <span style={{ color: cat.color, fontWeight: 700, fontSize: "0.65rem", flexShrink: 0 }}>[{key}]</span>
+              <span style={{ fontSize: "0.65rem", color: block.color, flexShrink: 0, lineHeight: 1 }}>{block.shape === "square" ? "■" : "●"}</span>
+              <span style={{ color: block.color, fontWeight: 700, fontSize: "0.65rem", flexShrink: 0 }}>[{key}]</span>
               <span style={{
                 fontSize: "0.72rem",
                 color: checked ? C.text : C.muted,
                 userSelect: "none",
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>{cat.label}</span>
+              }}>{block.name}</span>
             </label>
           );
         })}

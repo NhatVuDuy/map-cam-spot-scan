@@ -31,8 +31,8 @@ const styles = {
 };
 
 export default function ScanButton() {
-  const { loading, progress, error, runScan, categories } = useScanner();
-  const disabled = loading || categories.length === 0;
+  const { loading, progress, error, runScan, blocks } = useScanner();
+  const disabled = loading || (blocks || []).length === 0;
 
   return (
     <div style={styles.wrapper}>
