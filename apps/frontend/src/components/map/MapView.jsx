@@ -103,14 +103,14 @@ function buildIntersectionPopupHTML({ props, distFmt }) {
   const block     = BLOCKS[blockId] || {};
   const color     = block.color || "#94a3b8";
   const blockName = block.name || "Giao lộ";
-  const symbol    = block.symbol || "";
+  const shape     = block.shape === "square" ? "■" : "●";
 
   return `
     <div style="min-width:220px;font-family:system-ui,sans-serif">
       <div style="padding:0.65rem 0.85rem 0.5rem;border-bottom:1px solid #1e3354">
         <div style="font-size:0.88rem;font-weight:700;color:#f1f5f9;margin-bottom:0.3rem">${props.name || "Giao lộ"}</div>
         <span style="display:inline-flex;align-items:center;gap:5px;font-size:0.7rem;padding:2px 8px;border-radius:100px;background:${color}20;border:1px solid ${color}44;color:${color};font-weight:600">
-          ${symbol} <strong>${blockId}</strong> ${blockName}
+          ${shape} <strong>${blockId}</strong> ${blockName}
         </span>
       </div>
       <div style="padding:0.55rem 0.85rem;display:flex;flex-direction:column;gap:0.35rem">
@@ -147,8 +147,8 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
   const blockId = props.blockId;
   const block   = blockId ? BLOCKS[blockId] : null;
   const color   = block?.color || cat?.color || "#94a3b8";
-  const symbol  = block?.symbol || "";
-  const label   = block ? `${symbol} ${blockId} ${block.name}` : (cat?.label || props.category || "—");
+  const shape   = block?.shape === "square" ? "■" : "●";
+  const label   = block ? `${shape} ${blockId} ${block.name}` : (cat?.label || props.category || "—");
 
   return `
     <div style="min-width:200px;font-family:system-ui,sans-serif">
@@ -171,8 +171,12 @@ function buildPopupHTML({ props, cat, distFmt, score }) {
         ${score != null ? `<div style="display:flex;justify-content:space-between;font-size:0.78rem"><span style="color:#64748b">Điểm ưu tiên</span><strong style="color:#FBBF24">★ ${score}</strong></div>` : ""}
       </div>
       <div style="padding:0.3rem 0.85rem 0rem">
-        <label style="font-size:0.65rem;color:#64748b;display:block;margin-bottom:4px">Loại địa điểm</label>
-        ${buildBlockPickerHTML(props.id, props.blockId || '')}
+        <button data-toggle-picker="${props.id}" style="width:100%;padding:4px 8px;background:#1e293b;border:1px solid #334155;border-radius:5px;color:#94a3b8;font-size:0.7rem;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;">
+          <span>Đổi loại…</span><span style="font-size:0.6rem">▾</span>
+        </button>
+        <div id="picker-${props.id}" style="display:none;margin-top:4px">
+          ${buildBlockPickerHTML(props.id, props.blockId || '')}
+        </div>
       </div>
       <div style="padding:0.4rem 0.85rem 0.65rem">
         <button data-delete-id="${props.id}"
@@ -405,6 +409,20 @@ function MapViewInner() {
         return;
       }
 
+      // Toggle block picker visibility
+      const toggleBtn = e.target.closest("[data-toggle-picker]");
+      if (toggleBtn) {
+        const id = toggleBtn.getAttribute("data-toggle-picker");
+        const picker = document.getElementById(`picker-${id}`);
+        if (picker) {
+          const open = picker.style.display !== "none";
+          picker.style.display = open ? "none" : "block";
+          const arrow = toggleBtn.querySelector("span:last-child");
+          if (arrow) arrow.textContent = open ? "▾" : "▴";
+        }
+        return;
+      }
+
       // Block picker item click
       const pickBtn = e.target.closest("[data-pick-block]");
       if (pickBtn) {
@@ -573,12 +591,12 @@ function MapViewInner() {
         },
       });
 
-      // Label: only show [Bxx] at high zoom (unobtrusive)
+      // Label: only show [Bxx] at very high zoom
       map.addLayer({
         id: "points-label",
         type: "symbol",
         source: "points",
-        minzoom: 15,
+        minzoom: 18,
         layout: {
           "text-field": ["case", ["has", "blockId"], ["concat", "[", ["get", "blockId"], "]"], ""],
           "text-size": 10,
@@ -588,11 +606,11 @@ function MapViewInner() {
           "text-allow-overlap": false,
         },
         paint: {
-          "text-color": ["get", "color"],
-          "text-halo-color": "#000000",
-          "text-halo-width": 2,
+          "text-color": "#111111",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.5,
           "text-halo-blur": 0,
-          "text-opacity": 0.9,
+          "text-opacity": 1,
         },
       });
 

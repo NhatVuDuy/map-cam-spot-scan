@@ -133,7 +133,7 @@ function ResultsList() {
 
   useEffect(() => {
     if (selectedPoint) {
-      itemRefs.current[selectedPoint.id]?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      itemRefs.current[selectedPoint.id]?.scrollIntoView({ behavior: "instant", block: "nearest" });
     }
   }, [selectedPoint]);
   const confirmPoint = confirmId ? points.find(p => p.id === confirmId) : null;
@@ -174,7 +174,6 @@ function ResultsList() {
             const blockId  = p.blockId || p.category;
             const block    = BLOCKS[blockId];
             const color    = block?.color || "#888";
-            const symbol   = block?.symbol || "";
             const isSelected = selectedPoint?.id === p.id;
             return (
               <div
@@ -207,7 +206,6 @@ function ResultsList() {
                     )}
                   </div>
                   <div style={{ fontSize: "0.67rem", color: C.muted, marginTop: "2px" }}>
-                    {symbol && <span style={{ marginRight: "3px" }}>{symbol}</span>}
                     {block?.name || p.category} · {p.distanceM >= 1000 ? `${(p.distanceM / 1000).toFixed(1)}km` : `${p.distanceM}m`}
                   </div>
                 </div>
@@ -345,7 +343,6 @@ function StatsTab() {
                   <span style={{ fontSize: "0.73rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
                     <span style={{ color: block.color }}>{shape}</span>
                     <span style={{ color: block.color }}>{blockId}</span>
-                    <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: "0.68rem" }}>{block.name}</span>
                   </span>
                   <span style={{ fontSize: "0.68rem", color: "#94a3b8", flexShrink: 0 }}>
                     {cnt}×{camTotal(block)} = <strong style={{ color: C.amber }}>{totalBlockCams}</strong>
