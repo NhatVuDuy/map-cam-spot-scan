@@ -1,30 +1,28 @@
 import { create } from "zustand";
 import { browserScan } from "../services/browserScan.js";
 import { planAllCameras, pickAlleyArmBearing } from "../algorithms/cameraPlacement.js";
-import { DEFAULT_BLOCKS, BLOCKS } from "../config/blocks.js";
+import { CATEGORIES } from "../utils/categories.js";
+import { BLOCKS } from "../config/blocks.js";
 import { importSession } from "../utils/sessionFile.js";
 import {
   listSessions, readSession, writeSession,
   deleteSession, renameSession, downloadSession,
 } from "../utils/opfs.js";
 
-const DEFAULT_BLOCKS_LIST = DEFAULT_BLOCKS;
+const DEFAULT_CATEGORIES = Object.keys(CATEGORIES);
 
 const SHAPE_LABEL = {
-  quad:       "Ngã tư",
-  tri:        "Ngã ba",
-  alley:      "Đầu hẻm",
-  alley_minor:"Giao cắt hẻm",
-  minor:      "Giao cắt",
+  quad:  "Ngã tư",
+  tri:   "Ngã ba",
+  alley: "Đầu hẻm",
+  minor: "Giao cắt",
 };
 
 const useScanStore = create((set, get) => ({
   // --- Input ---
   source: { id: "overpass", config: {} },
   area: { lat: 10.7726, lng: 106.677, radiusM: 1000 },
-  blocks: DEFAULT_BLOCKS_LIST,
-  categories: DEFAULT_BLOCKS_LIST, // backward compat alias
-  designMode: false,
+  categories: DEFAULT_CATEGORIES,
   boundary: null,
   maxResults: 500,
 
@@ -63,14 +61,21 @@ const useScanStore = create((set, get) => ({
   setSource: (source) => set({ source }),
   setShowCameras: (showCameras) => set({ showCameras }),
   setArea: (area) => set({ area: { ...get().area, ...area } }),
-  setBlocks: (blocks) => set({ blocks, categories: blocks }),
-  setCategories: (blocks) => set({ blocks, categories: blocks }), // backward compat alias
-  setDesignMode: (v) => set({ designMode: v }),
+  setCategories: (categories) => set({ categories }),
   setBoundary: (boundary) => set({ boundary }),
   setMaxResults: (maxResults) => set({ maxResults: maxResults === "all" ? Infinity : Number(maxResults) }),
   toggleBlockVisibility: (blockId) => {
     const h = get().hiddenBlocks;
     set({ hiddenBlocks: h.includes(blockId) ? h.filter(b => b !== blockId) : [...h, blockId] });
+  },
+
+  updatePointBlock: (id, newBlockId) => {
+    const block = BLOCKS[newBlockId];
+    if (!block) return;
+    const points = get().points.map(p => p.id !== id ? p : {
+      ...p, blockId: newBlockId, category: newBlockId, color: block.color,
+    });
+    set({ points });
   },
 
   addPoint: (point) => {
@@ -100,7 +105,7 @@ const useScanStore = create((set, get) => ({
     let effectiveAlleyBearing = null;
     if (rawIx) {
       const merged = { ...rawIx, ...newEntry };
-      if (["alley","alley_minor"].includes(merged.intersectionShape || rawIx.intersectionShape)) {
+      if ((merged.intersectionShape || rawIx.intersectionShape) === "alley") {
         effectiveAlleyBearing = pickAlleyArmBearing(merged);
       }
     }
@@ -124,7 +129,7 @@ const useScanStore = create((set, get) => ({
 
   // ─── Scan ────────────────────────────────────────────────────────────────
   runScan: async () => {
-    const { area, blocks, boundary, maxResults } = get();
+    const { area, categories, boundary, maxResults } = get();
     set({
       loading: true, error: null, progress: "Đang khởi động...",
       points: [], roads: [], cameras: [],
@@ -138,7 +143,7 @@ const useScanStore = create((set, get) => ({
 
     try {
       const result = await browserScan(
-        { area, blocks, boundary, options: { maxResults, includeRoads: true } },
+        { area, categories, boundary, options: { maxResults, includeRoads: true } },
         (msg) => set({ progress: msg })
       );
 
@@ -321,8 +326,6 @@ const useScanStore = create((set, get) => ({
       boundary:         data.boundary         ?? null,
       bbox:             null,
       stats,
-      blocks:           data.blocks           || DEFAULT_BLOCKS_LIST,
-      designMode:       data.designMode       || false,
       loading:          false,
       progress:         `Đã tải từ cache (${(data.cameras || []).length} camera)`,
       error:            null,
@@ -339,18 +342,6 @@ const useScanStore = create((set, get) => ({
       sessionFilename: null, sessionDisplayName: null,
       error: null, progress: "", selectedPoint: null,
     }),
-
-  updatePointBlock: (id, newBlockId) => {
-    const block = BLOCKS[newBlockId];
-    if (!block) return;
-    const points = get().points.map(p => p.id !== id ? p : {
-      ...p,
-      blockId: newBlockId,
-      category: newBlockId,
-      color: block.color,
-    });
-    set({ points });
-  },
 
   setFilter: (filter) => set({ filter }),
   setHoveredPoint: (hoveredPoint) => set({ hoveredPoint }),

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { CATEGORIES } from "../../utils/categories.js";
-import { BLOCKS, SQUARE_BLOCKS } from "../../config/blocks.js";
+import { BLOCKS } from "../../config/blocks.js";
 
 const C = {
   bg: "#0d1829", bg2: "#0f1f35", border: "#1e3354",
@@ -15,7 +14,7 @@ const menuStyle = {
   border: `1px solid ${C.border}`,
   borderRadius: "8px",
   boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-  minWidth: "200px",
+  minWidth: "220px",
   overflow: "hidden",
   userSelect: "none",
 };
@@ -58,13 +57,13 @@ function CoordBadge({ lat, lng }) {
   );
 }
 
-const CIRCLE_BLOCK_KEYS = ["B01","B02","B03","B04","B05","B06","B07","B07-S"];
+const ROAD_BLOCKS  = ["B01","B02","B03","B04","B05","B06","B07","B07-S"];
+const PLACE_BLOCKS = ["B08","B09","B10","B11","B12","B13"];
 
 function AddPointForm({ lat, lng, onAdd, onCancel }) {
   const [blockId, setBlockId] = useState("B08");
-  const [name, setName] = useState("");
-
-  const selectedBlock = BLOCKS[blockId];
+  const [name, setName]       = useState("");
+  const block = BLOCKS[blockId] || BLOCKS.B08;
 
   const submit = () => {
     onAdd({
@@ -72,8 +71,8 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
       lat, lng,
       blockId,
       category: blockId,
-      color: selectedBlock?.color,
-      name: name.trim() || selectedBlock?.name || blockId,
+      color: block.color,
+      name: name.trim() || block.name,
       distanceM: 0,
       score: 0,
       source: "custom",
@@ -86,13 +85,19 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
       <div style={{ fontSize: "0.67rem", color: C.muted, marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
         Thêm điểm thủ công
       </div>
-      {selectedBlock && (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px", padding: "4px 8px", background: `${selectedBlock.color}15`, border: `1px solid ${selectedBlock.color}40`, borderRadius: "5px" }}>
-          <span style={{ color: selectedBlock.color, fontSize: "0.85rem" }}>{SQUARE_BLOCKS.includes(blockId) ? "■" : "●"}</span>
-          <span style={{ color: selectedBlock.color, fontWeight: 700, fontSize: "0.72rem" }}>[{blockId}]</span>
-          <span style={{ color: C.text, fontSize: "0.72rem" }}>{selectedBlock.name}</span>
-        </div>
-      )}
+
+      {/* Selected block preview */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "6px",
+        marginBottom: "8px", padding: "5px 8px",
+        background: `${block.color}15`, border: `1px solid ${block.color}44`,
+        borderRadius: "6px",
+      }}>
+        <span style={{ color: block.color, fontSize: "0.75rem" }}>{block.shape === "square" ? "■" : "●"}</span>
+        <span style={{ color: block.color, fontWeight: 700, fontSize: "0.7rem" }}>{blockId}</span>
+        <span style={{ color: "#cbd5e1", fontSize: "0.7rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{block.name}</span>
+      </div>
+
       <input
         autoFocus
         placeholder="Tên địa điểm (tùy chọn)"
@@ -103,28 +108,32 @@ function AddPointForm({ lat, lng, onAdd, onCancel }) {
           width: "100%", padding: "5px 8px", marginBottom: "6px",
           background: C.bg2, border: `1px solid ${C.border}`,
           borderRadius: "5px", color: C.text, fontSize: "0.78rem", outline: "none",
+          boxSizing: "border-box",
         }}
       />
+
       <select
         value={blockId}
         onChange={e => setBlockId(e.target.value)}
         style={{
           width: "100%", padding: "5px 8px", marginBottom: "8px",
-          background: "#1e293b", border: "1px solid #334155",
-          borderRadius: "5px", color: "#e2e8f0", fontSize: "0.72rem", outline: "none", cursor: "pointer",
+          background: C.bg2, border: `1px solid ${C.border}`,
+          borderRadius: "5px", color: C.text, fontSize: "0.72rem", outline: "none",
+          boxSizing: "border-box",
         }}
       >
         <optgroup label="Giao lộ & Đường">
-          {CIRCLE_BLOCK_KEYS.map(k => (
-            <option key={k} value={k}>{SQUARE_BLOCKS.includes(k) ? "■" : "●"} {k} {BLOCKS[k]?.name}</option>
+          {ROAD_BLOCKS.map(k => (
+            <option key={k} value={k}>● {k} — {BLOCKS[k].name}</option>
           ))}
         </optgroup>
         <optgroup label="Địa điểm & Công trình">
-          {SQUARE_BLOCKS.map(k => (
-            <option key={k} value={k}>■ {k} {BLOCKS[k]?.name}</option>
+          {PLACE_BLOCKS.map(k => (
+            <option key={k} value={k}>■ {k} — {BLOCKS[k].name}</option>
           ))}
         </optgroup>
       </select>
+
       <div style={{ display: "flex", gap: "6px" }}>
         <button onClick={submit} style={{
           flex: 1, padding: "5px", background: `${C.cyan}22`,
@@ -145,7 +154,6 @@ export default function MapContextMenu({ x, y, lat, lng, onClose, onMoveCenter, 
   const [mode, setMode] = useState("menu"); // "menu" | "add"
   const ref = useRef(null);
 
-  // Close on outside click or Escape
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
@@ -157,9 +165,8 @@ export default function MapContextMenu({ x, y, lat, lng, onClose, onMoveCenter, 
     };
   }, [onClose]);
 
-  // Adjust position so menu doesn't overflow viewport
   const style = { ...menuStyle };
-  const menuW = 210, menuH = mode === "add" ? 220 : 160;
+  const menuW = 225, menuH = mode === "add" ? 280 : 160;
   style.left = x + menuW > window.innerWidth  ? x - menuW : x;
   style.top  = y + menuH > window.innerHeight ? y - menuH : y;
 

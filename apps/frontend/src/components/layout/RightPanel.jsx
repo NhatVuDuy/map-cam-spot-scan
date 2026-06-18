@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useScanner } from "../../hooks/useScanner.js";
 import { useExport } from "../../hooks/useExport.js";
-import { BLOCKS, BLOCK_KEYS, SQUARE_BLOCKS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
+import { BLOCKS, BLOCK_KEYS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
@@ -45,19 +45,19 @@ function MiniBar({ label, value, max, color, total }) {
   const share = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
-      <div style={{ fontSize: "0.72rem", color: C.dim, width: "90px", flexShrink: 0, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
+      <div style={{ fontSize: "0.72rem", color: "#94a3b8", width: "90px", flexShrink: 0, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
       <div style={{ flex: 1, height: "6px", background: `${color}20`, borderRadius: "3px", overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}99)`, borderRadius: "3px", transition: "width 0.6s ease" }} />
       </div>
-      <div style={{ fontSize: "0.68rem", color: "#cbd5e1", width: "26px", textAlign: "right", flexShrink: 0 }}>{value}</div>
-      <div style={{ fontSize: "0.62rem", color: `${color}aa`, width: "28px", textAlign: "right", flexShrink: 0 }}>{share}%</div>
+      <div style={{ fontSize: "0.68rem", color: "#cbd5e1", width: "26px", textAlign: "right", flexShrink: 0, fontWeight: 600 }}>{value}</div>
+      <div style={{ fontSize: "0.62rem", color, width: "28px", textAlign: "right", flexShrink: 0 }}>{share}%</div>
     </div>
   );
 }
 
 /* ─── block visibility filter (Lọc tab) ──────────────────────────────────── */
 function BlockFilter() {
-  const { points, filter, setFilter, hiddenBlocks, toggleBlockVisibility } = useScanner();
+  const { points, hiddenBlocks, toggleBlockVisibility } = useScanner();
 
   // Count per block from actual points
   const counts = {};
@@ -86,6 +86,7 @@ function BlockFilter() {
         const count   = counts[key] || 0;
         if (!count) return null;
         const hidden   = hiddenBlocks.includes(key);
+        const isSquare = block.shape === "square";
         return (
           <div key={key} style={{
             display: "flex", alignItems: "center", gap: "0.45rem",
@@ -106,12 +107,10 @@ function BlockFilter() {
                 color: hidden ? C.muted : block.color, padding: "0 2px",
               }}
             >{hidden ? "🙈" : "👁"}</button>
-            {/* color dot */}
-            <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: block.color, flexShrink: 0 }} />
+            {/* shape indicator */}
+            <span style={{ fontSize: "0.65rem", color: block.color, flexShrink: 0, lineHeight: 1 }}>{isSquare ? "■" : "●"}</span>
             {/* block code + name */}
-            <span
-              style={{ flex: 1, fontSize: "0.74rem", color: C.dim, userSelect: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-            >
+            <span style={{ flex: 1, fontSize: "0.74rem", color: C.dim, userSelect: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               <strong style={{ color: block.color, marginRight: "3px" }}>{key}</strong>{block.name}
             </span>
             <span style={{
@@ -285,7 +284,7 @@ function StatsTab() {
           {activeBlocks.map(k => (
             <MiniBar
               key={k}
-              label={`${k} ${BLOCKS[k].symbol}`}
+              label={`${BLOCKS[k].shape === "square" ? "■" : "●"} ${k} ${BLOCKS[k].symbol}`}
               value={blockCounts[k] || 0}
               max={maxCount}
               color={BLOCKS[k].color}
@@ -335,11 +334,8 @@ function StatsTab() {
                 borderRadius: "6px",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.2rem" }}>
-                  <span style={{ fontSize: "0.73rem", color: block.color, fontWeight: 700 }}>
-                    <span style={{ marginRight: "3px" }}>{SQUARE_BLOCKS.includes(blockId) ? "■" : "●"}</span>
-                    {block.symbol} {blockId}
-                  </span>
-                  <span style={{ fontSize: "0.68rem", color: "#cbd5e1" }}>{cnt} vị trí × {camTotal(block)} cam = <strong style={{ color: "#f1f5f9" }}>{total_block_cams}</strong></span>
+                  <span style={{ fontSize: "0.73rem", color: block.color, fontWeight: 700 }}>{block.symbol} {blockId}</span>
+                  <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{cnt} vị trí × {camTotal(block)} cam = <strong style={{ color: C.amber }}>{total_block_cams}</strong></span>
                 </div>
                 <div style={{ fontSize: "0.66rem", color: C.muted, lineHeight: 1.6 }}>
                   {CAM_TYPES.filter(t => block.cams[t] > 0).map(t => (
