@@ -59,7 +59,7 @@ const BLOCK_POI_OSM = {
 function buildOverpassQuery(bbox, blocks) {
   const [s, w, n, e] = bbox;
   const bboxStr = `${s},${w},${n},${e}`;
-  const parts = [`[out:json][timeout:90];`];
+  const parts = [`[out:json][timeout:30];`];
 
   // Road ways (needed for B01-B05, B07, B07-S, B12 and roundabout B04)
   const needsRoads = blocks.some(b => ROAD_BLOCKS.has(b));
@@ -84,7 +84,7 @@ async function fetchOverpass(query, abortSignal) {
   for (const endpoint of OVERPASS_ENDPOINTS) {
     if (abortSignal?.aborted) throw new DOMException("Aborted", "AbortError");
     try {
-      const timeoutSignal = AbortSignal.timeout(90_000);
+      const timeoutSignal = AbortSignal.timeout(35_000);
       const signal = abortSignal
         ? AbortSignal.any([abortSignal, timeoutSignal])
         : timeoutSignal;
