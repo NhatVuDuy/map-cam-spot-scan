@@ -269,7 +269,7 @@ function ScanDetail({ file, cityId, resume, retryFailed }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.6rem", marginBottom: "1.25rem" }}>
           {[
             { icon: "📹", label: "Camera",            val: fmt(agg.camCount),                                    color: C.cyan },
-            { icon: "🔀", label: "Giao lộ",            val: fmt(agg.byCat.intersection || 0),                   color: C.amber },
+            { icon: "📍", label: "Địa điểm",           val: fmt(agg.poiCount || 0),                              color: C.amber },
             { icon: "✅", label: "Phường hoàn tất",    val: `${agg.completed}/${file.wardCounts?.length || 0}`, color: C.green },
           ].map(({ icon, label, val, color }) => (
             <div key={label} style={{ background: C.card, border: `1px solid ${color}33`, borderRadius: "9px", padding: "0.75rem", display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -309,7 +309,7 @@ function ScanDetail({ file, cityId, resume, retryFailed }) {
 }
 
 /* ── Sidebar scan controls ───────────────────────────────────────── */
-function SidebarControls({ isRunning, onStartFresh, onStop, onNavigateCity }) {
+function SidebarControls({ isRunning, onStartFresh, onStop }) {
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
       {isRunning ? (
@@ -325,18 +325,14 @@ function SidebarControls({ isRunning, onStartFresh, onStop, onNavigateCity }) {
           fontSize: "0.8rem", cursor: "pointer", width: "100%",
         }}>+ Quét mới</button>
       )}
-      <button onClick={onNavigateCity} style={{
-        background: `linear-gradient(135deg,${C.cyan},${C.violet})`, border: "none",
-        borderRadius: "7px", padding: "0.55rem", color: "#fff", fontWeight: 700,
-        fontSize: "0.78rem", cursor: "pointer", width: "100%",
-      }}>🏙️ Quét thành phố mới</button>
     </div>
   );
 }
 
 /* ── Main page ───────────────────────────────────────────────────── */
-export default function CityScans() {
-  const { cityId } = useParams();
+export default function CityScans({ defaultCityId }) {
+  const params = useParams();
+  const cityId = params.cityId || defaultCityId || "hcm";
   const navigate   = useNavigate();
   const [city, setCity]             = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -396,14 +392,38 @@ export default function CityScans() {
   return (
     <AppLayout
       featureName={city.name}
-      backButton={<BackBtn onClick={() => navigate("/city")}>← Thành phố</BackBtn>}
+      backButton={params.cityId ? <BackBtn onClick={() => navigate("/")}>← Trang chủ</BackBtn> : null}
       navButtons={
         <NavBtn color={C.cyan} onClick={() => navigate("/scan")}>🔍 Quét vùng</NavBtn>
       }
     >
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* ── Left: scan detail / progress ─────────────────────────── */}
+        {/* ── Left sidebar: file tree + action bar ─────────────────── */}
+        <div style={{
+          width: "260px", flexShrink: 0, borderRight: `1px solid ${C.border}`,
+          display: "flex", flexDirection: "column", overflow: "hidden", background: "#080f1e",
+        }}>
+          <FileTree
+            scanFiles={scanFiles}
+            folders={folders}
+            activeScanId={selectedFile?.id}
+            onSelect={setSelectedFile}
+            onRename={renameScanFile}
+            onMove={moveScanFileToFolder}
+            onDelete={async (id) => { await deleteScanFile(id); if (selectedFile?.id === id) setSelectedFile(null); }}
+            onCreateFolder={createFolder}
+            onRenameFolder={renameFolder}
+            onDeleteFolder={deleteFolder}
+          />
+          <SidebarControls
+            isRunning={isRunning}
+            onStartFresh={handleStartFresh}
+            onStop={stopScan}
+          />
+        </div>
+
+        {/* ── Right: scan detail / progress ────────────────────────── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {isRunning ? (
             <ScanProgress
@@ -423,30 +443,6 @@ export default function CityScans() {
           )}
         </div>
 
-        {/* ── Right sidebar: file tree + action bar ────────────────── */}
-        <div style={{
-          width: "260px", flexShrink: 0, borderLeft: `1px solid ${C.border}`,
-          display: "flex", flexDirection: "column", overflow: "hidden", background: "#080f1e",
-        }}>
-          <FileTree
-            scanFiles={scanFiles}
-            folders={folders}
-            activeScanId={selectedFile?.id}
-            onSelect={setSelectedFile}
-            onRename={renameScanFile}
-            onMove={moveScanFileToFolder}
-            onDelete={async (id) => { await deleteScanFile(id); if (selectedFile?.id === id) setSelectedFile(null); }}
-            onCreateFolder={createFolder}
-            onRenameFolder={renameFolder}
-            onDeleteFolder={deleteFolder}
-          />
-          <SidebarControls
-            isRunning={isRunning}
-            onStartFresh={handleStartFresh}
-            onStop={stopScan}
-            onNavigateCity={() => navigate("/city")}
-          />
-        </div>
       </div>
     </AppLayout>
   );

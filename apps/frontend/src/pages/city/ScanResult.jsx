@@ -4,6 +4,7 @@ import AppLayout, { NavBtn, BackBtn } from "../../components/layout/AppLayout.js
 import ChoroplethMap from "../../components/city/ChoroplethMap.jsx";
 import { getScanFile, getCity, seedBuiltInCities } from "../../utils/cityDB.js";
 import { aggregateWards, exportScanFileJSON, exportScanFileCSV } from "../../services/cityBatchScan.js";
+import { BLOCKS, BLOCK_KEYS, CAM_TYPES, CAM_COLORS } from "../../config/blocks.js";
 
 const C = {
   bg: "#060d1a", bg2: "#0b1425", card: "#0d1829", card2: "#0f1f35", border: "#1a2e4a",
@@ -12,21 +13,17 @@ const C = {
   text: "#e2e8f0", muted: "#64748b", dim: "#94a3b8",
 };
 
+const CAM_LABELS = {
+  ITS1: "ITS1 — Camera giao thông đô thị",
+  ITS2: "ITS2 — Camera đếm xe / phân luồng",
+  P2:   "P2 — PTZ bùng binh / ngã năm",
+  P1:   "P1 — PTZ cổng vào trọng điểm",
+  B3:   "B3 — Thân box lớn (chống mất cắp)",
+  B2:   "B2 — Thân box chuẩn",
+  B1:   "B1 — Thân box nhỏ (hẻm/nội bộ)",
+};
+
 function fmt(n) { return Math.round(n).toLocaleString("vi-VN"); }
-
-const LOC_CAM  = { intersection: 4, school: 10, hospital: 30, market: 20, hotel: 8, park: 10, conference: 15, government: 12 };
-const PLAN_HCM = 1_100_000;
-
-const CAT_META = [
-  { key: "intersection", icon: "🔀", label: "Giao lộ",    color: C.cyan,   cam: 4 },
-  { key: "school",       icon: "🏫", label: "Trường học",  color: C.violet, cam: 10 },
-  { key: "hospital",     icon: "🏥", label: "Bệnh viện",   color: C.green,  cam: 30 },
-  { key: "market",       icon: "🏪", label: "Chợ/TTTM",    color: C.amber,  cam: 20 },
-  { key: "park",         icon: "🌳", label: "Công viên",   color: C.lime,   cam: 10 },
-  { key: "hotel",        icon: "🏨", label: "Khách sạn",   color: C.pink,   cam: 8 },
-  { key: "conference",   icon: "🏢", label: "Hội nghị",    color: "#f9a8d4", cam: 15 },
-  { key: "government",   icon: "🏛️", label: "Cơ quan",     color: C.gold,   cam: 12 },
-];
 
 function Bar({ pct, color, height = 6, delay = 0 }) {
   const [w, setW] = useState(0);
@@ -40,21 +37,25 @@ function Bar({ pct, color, height = 6, delay = 0 }) {
 
 /* ── Stats dashboard ─────────────────────────────────────────────── */
 function Dashboard({ agg, wardResults, city }) {
-  const topWards = [...wardResults].filter(w => !w.error).sort((a, b) => b.camCount - a.camCount).slice(0, 10);
-  const maxCam   = topWards[0]?.camCount || 1;
+  const topWards = [...wardResults].filter(w => !w.error).sort((a, b) => {
+    const sumA = Object.values(a.byCat || {}).reduce((s, v) => s + v, 0);
+    const sumB = Object.values(b.byCat || {}).reduce((s, v) => s + v, 0);
+    return sumB - sumA;
+  }).slice(0, 10);
+  const maxPoi = topWards[0] ? Object.values(topWards[0].byCat || {}).reduce((s, v) => s + v, 0) : 1;
+
+  const camRows = CAM_TYPES.map(t => ({ type: t, v: agg.byCam?.[t] || 0, color: CAM_COLORS[t], label: CAM_LABELS[t] })).filter(r => r.v > 0);
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "1.25rem 1.25rem 3rem" }}>
       {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.7rem", marginBottom: "1rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.7rem", marginBottom: "1rem" }}>
         {[
-          { icon: "📹", label: "Camera OSM",    val: fmt(agg.camCount),   sub: `KH: ${fmt(PLAN_HCM)}`, color: C.cyan },
-          { icon: "🔀", label: "Giao lộ",         val: fmt(agg.byCat.intersection || 0), sub: `${fmt((agg.byCat.intersection||0)*4)} cam giao lộ`, color: C.amber },
-          { icon: "🛣️", label: "Đường (km)",     val: fmt(agg.roadKm),     sub: `${(agg.roadKm / (city?.areaKm2 || 2095)).toFixed(2)} km/km²`, color: C.violet },
-          { icon: "✅", label: "Phường hoàn tất", val: `${agg.completed}/${wardResults.length}`, sub: `${agg.errors} lỗi`, color: C.green },
-        ].map(({ icon, label, val, sub, color }) => (
+          { label: "Camera (ước tính)", val: fmt(agg.camCount),   sub: "Từ hệ số × địa điểm", color: C.cyan },
+          { label: "Địa điểm phát hiện", val: fmt(agg.poiCount),  sub: `${BLOCK_KEYS.filter(b => agg.byBlock?.[b]).length} loại`, color: C.amber },
+          { label: "Phường hoàn tất",    val: `${agg.completed}/${wardResults.length}`, sub: `${agg.errors} lỗi`, color: C.green },
+        ].map(({ label, val, sub, color }) => (
           <div key={label} style={{ background: C.card, border: `1px solid ${color}33`, borderTop: `3px solid ${color}`, borderRadius: "10px", padding: "0.85rem 1rem" }}>
-            <div style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>{icon}</div>
             <div style={{ fontSize: "1.2rem", fontWeight: 900, color, lineHeight: 1.1 }}>{val}</div>
             <div style={{ fontSize: "0.7rem", fontWeight: 600, color: C.text, margin: "0.15rem 0 0.1rem" }}>{label}</div>
             <div style={{ fontSize: "0.62rem", color: C.muted }}>{sub}</div>
@@ -66,15 +67,12 @@ function Dashboard({ agg, wardResults, city }) {
         {/* Camera type bars */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.25rem" }}>
           <div style={{ fontSize: "0.65rem", fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.85rem" }}>
-            Loại camera — {fmt(agg.camCount)} tổng
+            Loại camera — {fmt(agg.camCount)} ước tính
           </div>
-          {[
-            { label: "CAM1 — Đường dài",       v: agg.cam1,     color: C.cyan },
-            { label: "CAM2/2.2 — Giao lộ đèn", v: agg.cam2,     color: C.amber },
-            { label: "CAM2.1/2.3 — Không đèn", v: agg.cam21,    color: C.orange },
-            { label: "CAM_alley — Đầu hẻm",    v: agg.camAlley, color: C.green },
-          ].filter(r => r.v > 0).map((r, i) => (
-            <div key={i} style={{ marginBottom: "0.45rem" }}>
+          {camRows.length === 0 ? (
+            <div style={{ fontSize: "0.72rem", color: C.muted }}>Chưa có dữ liệu camera.</div>
+          ) : camRows.map((r, i) => (
+            <div key={r.type} style={{ marginBottom: "0.45rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", marginBottom: "0.15rem" }}>
                 <span style={{ color: C.dim }}>{r.label}</span>
                 <span style={{ fontWeight: 700, color: r.color }}>{fmt(r.v)}</span>
@@ -87,43 +85,52 @@ function Dashboard({ agg, wardResults, city }) {
         {/* Top wards */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.1rem" }}>
           <div style={{ fontSize: "0.65rem", fontWeight: 800, color: C.violet, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.75rem" }}>Top 10 phường</div>
-          {topWards.map((w, i) => (
-            <div key={w.code} style={{ marginBottom: "0.4rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", marginBottom: "0.1rem" }}>
-                <span style={{ color: i < 3 ? C.amber : C.dim }}>{i + 1}. {w.name}</span>
-                <span style={{ color: C.text, fontWeight: 700 }}>{fmt(w.camCount)}</span>
+          {topWards.map((w, i) => {
+            const poi = Object.values(w.byCat || {}).reduce((s, v) => s + v, 0);
+            return (
+              <div key={w.code} style={{ marginBottom: "0.4rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", marginBottom: "0.1rem" }}>
+                  <span style={{ color: i < 3 ? C.amber : C.dim }}>{i + 1}. {w.name}</span>
+                  <span style={{ color: C.text, fontWeight: 700 }}>{fmt(poi)}</span>
+                </div>
+                <Bar pct={(poi / maxPoi) * 100} color={i < 3 ? C.amber : C.violet} delay={i * 50} />
               </div>
-              <Bar pct={(w.camCount / maxCam) * 100} color={i < 3 ? C.amber : C.violet} delay={i * 50} />
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Category table */}
+      {/* Block table */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", overflow: "hidden" }}>
         <div style={{ padding: "0.75rem 1.1rem", borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ fontWeight: 800, fontSize: "0.82rem" }}>Theo loại địa điểm</span>
+          <span style={{ fontWeight: 800, fontSize: "0.82rem" }}>Theo loại địa điểm (B01–B13)</span>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: C.bg2 }}>
-              {["Địa điểm","POI","Cam/node","Camera"].map((h,i) => (
-                <th key={h} style={{ padding: "0.5rem 0.7rem", fontSize: "0.62rem", fontWeight: 700, color: C.dim, textAlign: i>0?"right":"left", borderBottom: `1px solid ${C.border}` }}>{h}</th>
+              {["Loại","POI","Cam/node","Camera ước tính"].map((h, i) => (
+                <th key={h} style={{ padding: "0.5rem 0.7rem", fontSize: "0.62rem", fontWeight: 700, color: C.dim, textAlign: i > 0 ? "right" : "left", borderBottom: `1px solid ${C.border}` }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {CAT_META.map(cat => {
-              const poi = agg.byCat[cat.key] || 0;
-              const cam = Math.round(poi * cat.cam);
+            {BLOCK_KEYS.map(blockId => {
+              const block = BLOCKS[blockId];
+              const poi = agg.byBlock?.[blockId] || 0;
+              const camPerNode = Object.values(block.cams).reduce((a, b) => a + b, 0);
+              const cam = poi * camPerNode;
+              const shape = block.shape === "circle" ? "●" : "■";
               return (
-                <tr key={cat.key} style={{ borderBottom: `1px solid ${C.border}22` }}>
-                  <td style={{ padding: "0.45rem 0.7rem", fontSize: "0.74rem", color: C.text }}>{cat.icon} {cat.label}</td>
-                  <td style={{ padding: "0.45rem 0.7rem", textAlign: "right", fontSize: "0.74rem", color: poi>0?C.text:C.muted }}>{poi>0?fmt(poi):"—"}</td>
-                  <td style={{ padding: "0.45rem 0.7rem", textAlign: "right" }}>
-                    <span style={{ fontSize: "0.6rem", padding: "2px 7px", borderRadius: "100px", border: `1px solid ${cat.color}44`, background: `${cat.color}18`, color: cat.color }}>{cat.cam}×</span>
+                <tr key={blockId} style={{ borderBottom: `1px solid ${C.border}22`, opacity: poi > 0 ? 1 : 0.4 }}>
+                  <td style={{ padding: "0.45rem 0.7rem", fontSize: "0.74rem" }}>
+                    <span style={{ color: block.color, marginRight: "0.4rem" }}>{shape} {blockId}</span>
+                    <span style={{ color: C.dim, fontSize: "0.68rem" }}>{block.name}</span>
                   </td>
-                  <td style={{ padding: "0.45rem 0.7rem", textAlign: "right", fontSize: "0.82rem", fontWeight: 900, color: cat.color }}>{cam>0?fmt(cam):"—"}</td>
+                  <td style={{ padding: "0.45rem 0.7rem", textAlign: "right", fontSize: "0.74rem", color: poi > 0 ? C.text : C.muted }}>{poi > 0 ? fmt(poi) : "—"}</td>
+                  <td style={{ padding: "0.45rem 0.7rem", textAlign: "right" }}>
+                    <span style={{ fontSize: "0.6rem", padding: "2px 7px", borderRadius: "100px", border: `1px solid ${block.color}44`, background: `${block.color}18`, color: block.color }}>{camPerNode}×</span>
+                  </td>
+                  <td style={{ padding: "0.45rem 0.7rem", textAlign: "right", fontSize: "0.82rem", fontWeight: 900, color: block.color }}>{cam > 0 ? fmt(cam) : "—"}</td>
                 </tr>
               );
             })}
@@ -175,7 +182,6 @@ export default function ScanResult() {
       backButton={<BackBtn onClick={() => navigate(`/city/${cityId}`)}>← {city?.name || cityId}</BackBtn>}
       navButtons={
         <>
-          {/* Tab switcher */}
           <div style={{ display: "flex", borderRadius: "6px", overflow: "hidden", border: `1px solid ${C.border}` }}>
             {[["dashboard","📊 Thống kê"],["map","🗺 Bản đồ"]].map(([key,label]) => (
               <button key={key} onClick={() => setTab(key)} style={{

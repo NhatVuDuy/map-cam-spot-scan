@@ -165,7 +165,7 @@ export default function Landing() {
             padding: "0.45rem 1.2rem",
             color: "#fff", fontWeight: 700, fontSize: "0.85rem",
             cursor: "pointer",
-          }}>City Scan →</button>
+          }}>Quét thành phố</button>
         </div>
       </nav>
 
@@ -208,7 +208,7 @@ export default function Landing() {
             }}
               onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.boxShadow = `0 0 60px ${C.cyan}66`; }}
               onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 0 40px ${C.cyan}44`; }}
-            >🗺 City Scan TP.HCM</button>
+            >🏙️ Quét thành phố</button>
 
             {/* Secondary */}
             <button onClick={() => navigate("/scan")} style={{
@@ -391,7 +391,7 @@ export default function Landing() {
               border: "none", borderRadius: "12px", padding: "0.85rem 2.5rem",
               color: "#fff", fontWeight: 800, fontSize: "1rem", cursor: "pointer",
               boxShadow: `0 0 40px ${C.violet}44`,
-            }}>🗺 City Scan TP.HCM</button>
+            }}>🏙️ Quét thành phố</button>
             <button onClick={() => navigate("/scan")} style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: "12px", padding: "0.85rem 2rem",
