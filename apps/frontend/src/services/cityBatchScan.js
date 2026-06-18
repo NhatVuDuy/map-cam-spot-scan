@@ -1,7 +1,7 @@
 import { browserScan } from "./browserScan.js";
 import { writeWardGeometry } from "../utils/wardGeometryDB.js";
 import { DEFAULT_BLOCKS, BLOCKS, CAM_TYPES } from "../config/blocks.js";
-const DELAY_MS = 1600;
+const DELAY_MS = 3000;
 const STORAGE_KEY = "hcm-city-scan-v1";
 
 function wardCenter(geometry) {

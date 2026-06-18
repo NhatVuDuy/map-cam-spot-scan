@@ -55,10 +55,22 @@ export default function CityMap() {
   const metricUnit = densityMode ? METRIC.densUnit : METRIC.absUnit;
 
   const [wards, setWards] = useState([]);
+  const [activeScanId, setActiveScanId] = useState(() => sessionStorage.getItem("city-report-scan") || "");
   useEffect(() => {
     async function load() {
       const scanId = sessionStorage.getItem("city-report-scan");
-      if (!scanId) return;
+      if (!scanId) {
+        // Fallback: pick most recent scan from store
+        const { scanFiles } = useScanFileStore.getState();
+        const first = scanFiles[0];
+        if (first) {
+          sessionStorage.setItem("city-report-scan", first.id);
+          setActiveScanId(first.id);
+          setWards(first.wardCounts || []);
+        }
+        return;
+      }
+      setActiveScanId(scanId);
       try { const sf = await getScanFile(scanId); if (sf?.wardCounts) setWards(sf.wardCounts); } catch {}
     }
     load();

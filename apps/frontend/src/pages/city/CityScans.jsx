@@ -605,7 +605,14 @@ export default function CityScans({ defaultCityId }) {
       backButton={<BackBtn onClick={() => navigate("/")}>← Trang chủ</BackBtn>}
       navButtons={
         <>
-          <NavBtn color={C.violet} onClick={() => navigate("/city/map")}>🗺 Bản đồ</NavBtn>
+          <NavBtn color={C.violet} onClick={() => {
+            const latestFile = selectedFile || scanFiles[0];
+            if (latestFile) {
+              sessionStorage.setItem("city-report-scan", latestFile.id);
+              sessionStorage.setItem("city-report-city", cityId);
+            }
+            navigate("/city/map");
+          }}>🗺 Bản đồ</NavBtn>
           <NavBtn color={C.cyan} onClick={() => navigate("/scan")}>🔍 Quét vùng</NavBtn>
         </>
       }
