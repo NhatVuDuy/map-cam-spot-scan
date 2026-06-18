@@ -27,6 +27,7 @@ import CityMap from "./pages/CityMap.jsx";
 import WardDetail from "./pages/WardDetail.jsx";
 import CityScans from "./pages/city/CityScans.jsx";
 import ScanResult from "./pages/city/ScanResult.jsx";
+import Guide from "./pages/Guide.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/city/map"      element={<CityMap />} />
         <Route path="/city/details"  element={<WardDetail />} />
         <Route path="/sys"           element={<Sys />} />
+        <Route path="/guide"         element={<Guide />} />
         {/* Legacy */}
         <Route path="/plan"          element={<Plan />} />
         <Route path="/city-hub"      element={<CityHub />} />
