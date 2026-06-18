@@ -1,6 +1,6 @@
 import { browserScan } from "./browserScan.js";
 import { writeWardGeometry } from "../utils/wardGeometryDB.js";
-import { DEFAULT_BLOCKS } from "../config/blocks.js";
+import { DEFAULT_BLOCKS, BLOCKS, CAM_TYPES } from "../config/blocks.js";
 const DELAY_MS = 1600;
 const STORAGE_KEY = "hcm-city-scan-v1";
 
@@ -51,21 +51,27 @@ export function clearCityScanCache() {
 
 /* ── aggregate helper ───────────────────────────────────────────── */
 export function aggregateWards(wards) {
-  const byCat = {};
-  let camCount = 0, roadKm = 0, cam1 = 0, cam2 = 0, cam21 = 0, camAlley = 0;
-  let completed = 0, errors = 0;
+  const byBlock = {};
+  const byCam = {};   // ITS1, ITS2, P2, P1, B3, B2, B1
+  let poiCount = 0, completed = 0, errors = 0;
   for (const w of wards) {
     if (w.error) { errors++; continue; }
     completed++;
-    camCount += w.camCount || 0;
-    roadKm += w.roadKm || 0;
-    cam1 += w.cam1 || 0;
-    cam2 += w.cam2 || 0;
-    cam21 += w.cam21 || 0;
-    camAlley += w.camAlley || 0;
-    for (const [k, v] of Object.entries(w.byCat || {})) byCat[k] = (byCat[k] || 0) + v;
+    for (const [k, v] of Object.entries(w.byCat || {})) byBlock[k] = (byBlock[k] || 0) + v;
   }
-  return { camCount, roadKm, cam1, cam2, cam21, camAlley, byCat, completed, errors };
+  // Estimate camera counts from block × cam ratios
+  let camCount = 0;
+  for (const [blockId, cnt] of Object.entries(byBlock)) {
+    poiCount += cnt;
+    const block = BLOCKS[blockId];
+    if (!block) continue;
+    for (const camType of CAM_TYPES) {
+      const n = (block.cams[camType] || 0) * cnt;
+      byCam[camType] = (byCam[camType] || 0) + n;
+      camCount += n;
+    }
+  }
+  return { camCount, poiCount, byCam, byBlock, byCat: byBlock, completed, errors };
 }
 
 /* ── scan a single ward ─────────────────────────────────────────── */
@@ -88,13 +94,7 @@ async function scanWard(ward) {
 
   return {
     name, code,
-    camCount: result.cameras.length,
     byCat: result.meta.byCategory || {},
-    roadKm: calcRoadKm(result.roads),
-    cam1:     result.cameras.filter(c => c.type === "cam1").length,
-    cam2:     result.cameras.filter(c => ["cam2", "cam22"].includes(c.type)).length,
-    cam21:    result.cameras.filter(c => ["cam21", "cam23"].includes(c.type)).length,
-    camAlley: result.cameras.filter(c => c.type === "cam_alley").length,
     durationMs: result.meta.durationMs,
     error: null,
   };
@@ -153,7 +153,7 @@ export async function batchScanCity({ onlyCodes, existingResults = [], onProgres
     } catch (err) {
       resultMap[code] = {
         name, code, error: err.message,
-        camCount: 0, byCat: {}, roadKm: 0, cam1: 0, cam2: 0, cam21: 0, camAlley: 0,
+        byCat: {},
       };
     }
 
@@ -254,7 +254,7 @@ export async function batchScanCityGeneric({
     } catch (err) {
       resultMap[code] = {
         name, code, error: err.message,
-        camCount: 0, byCat: {}, roadKm: 0, cam1: 0, cam2: 0, cam21: 0, camAlley: 0,
+        byCat: {},
       };
     }
 
@@ -310,15 +310,11 @@ export function exportScanFileCSV(scanFile) {
 }
 
 export function exportCSV(wards) {
-  const header = ["Phường/xã", "Mã", "Camera", "CAM1", "CAM2", "CAM2.1", "CAM Hẻm", "Đường (km)",
-    "Giao lộ", "Trường học", "Bệnh viện", "Chợ/TTTM", "Công viên", "Khách sạn", "Hội nghị", "Cơ quan", "Ghi chú"];
+  const BLOCK_IDS = ["B01","B02","B03","B04","B05","B06","B07","B07-S","B08","B09","B10","B11","B12","B13"];
+  const header = ["Phường/xã", "Mã", ...BLOCK_IDS, "Ghi chú"];
   const rows = wards.map(w => [
     w.name, w.code,
-    w.camCount || 0, w.cam1 || 0, w.cam2 || 0, w.cam21 || 0, w.camAlley || 0,
-    (w.roadKm || 0).toFixed(2),
-    w.byCat?.intersection || 0, w.byCat?.school || 0, w.byCat?.hospital || 0,
-    w.byCat?.market || 0, w.byCat?.park || 0, w.byCat?.hotel || 0,
-    w.byCat?.conference || 0, w.byCat?.government || 0,
+    ...BLOCK_IDS.map(b => w.byCat?.[b] || 0),
     w.error ? `Lỗi: ${w.error}` : "",
   ]);
   const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
