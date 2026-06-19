@@ -193,28 +193,27 @@ export async function writeWardGeometry(scanId, wardCode, data) {
 }
 
 export async function readWardGeometry(scanId, wardCode) {
-  const db = await openDB();
-  return get(db, STORES.wardGeo, `${scanId}_${wardCode}`);
+  const db  = await openDB();
+  // Try composite key first (new format, keyPath "id")
+  const byKey = await get(db, STORES.wardGeo, `${scanId}_${wardCode}`);
+  if (byKey) return byKey;
+  // Fallback: scan all records (old format, keyPath "wardCode")
+  const all = await getAll(db, STORES.wardGeo);
+  return all.find(r => r.scanId === scanId && r.wardCode === wardCode) ?? null;
 }
 
 export async function listWardGeometryCodes(scanId) {
-  const db   = await openDB();
-  const keys = await getAllKeys(db, STORES.wardGeo);
-  const prefix = `${scanId}_`;
-  return keys.filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length));
+  const db  = await openDB();
+  const all = await getAll(db, STORES.wardGeo);
+  return all.filter(rec => rec.scanId === scanId).map(rec => rec.wardCode);
 }
 
 export async function readAllWardGeometryForScan(scanId) {
-  const db    = await openDB();
-  const keys  = await getAllKeys(db, STORES.wardGeo);
-  const prefix = `${scanId}_`;
-  const matching = keys.filter(k => k.startsWith(prefix));
-  const result = [];
-  for (const key of matching) {
-    const rec = await get(db, STORES.wardGeo, key);
-    if (rec) result.push(rec);
-  }
-  return result;
+  const db  = await openDB();
+  const all = await getAll(db, STORES.wardGeo);
+  // Filter by scanId property — works regardless of IDB store keyPath
+  // (old stores may have keyPath "wardCode" instead of "id")
+  return all.filter(rec => rec.scanId === scanId);
 }
 
 export async function writeWardGeometryBatch(records) {
