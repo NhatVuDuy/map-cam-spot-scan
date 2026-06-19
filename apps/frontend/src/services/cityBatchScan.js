@@ -1,6 +1,7 @@
 import { browserScan } from "./browserScan.js";
 import { writeWardGeometry } from "../utils/wardGeometryDB.js";
 import { DEFAULT_BLOCKS, BLOCKS, CAM_TYPES } from "../config/blocks.js";
+import { effectiveCams } from "../config/camConfig.js";
 const DELAY_MS = 3000;
 const STORAGE_KEY = "hcm-city-scan-v1";
 
@@ -50,7 +51,11 @@ export function clearCityScanCache() {
 }
 
 /* ── aggregate helper ───────────────────────────────────────────── */
-export function aggregateWards(wards) {
+/**
+ * @param {Object[]} wards
+ * @param {Object}   [camConfig] - optional overrides from camConfig.js
+ */
+export function aggregateWards(wards, camConfig = {}) {
   const byBlock = {};
   const byCam = {};   // ITS1, ITS2, P2, P1, B3, B2, B1
   let poiCount = 0, completed = 0, errors = 0;
@@ -59,14 +64,13 @@ export function aggregateWards(wards) {
     completed++;
     for (const [k, v] of Object.entries(w.byCat || {})) byBlock[k] = (byBlock[k] || 0) + v;
   }
-  // Estimate camera counts from block × cam ratios
+  // Estimate camera counts from block × cam ratios (with optional overrides)
   let camCount = 0;
   for (const [blockId, cnt] of Object.entries(byBlock)) {
     poiCount += cnt;
-    const block = BLOCKS[blockId];
-    if (!block) continue;
+    const cams = effectiveCams(blockId, camConfig);
     for (const camType of CAM_TYPES) {
-      const n = (block.cams[camType] || 0) * cnt;
+      const n = (cams[camType] || 0) * cnt;
       byCam[camType] = (byCam[camType] || 0) + n;
       camCount += n;
     }
