@@ -193,6 +193,8 @@ export async function batchScanCityGeneric({
   scanId, cityId, geojsonPath, geojsonData,
   onlyCodes, existingResults = [],
   onProgress, onWardDone, onWriteGeometry,
+  blocks: configBlocks,
+  maxResults: configMaxResults,
   signal,
 } = {}) {
   const wards = await loadWardFeatures({ geojsonPath, geojsonData });
@@ -223,7 +225,13 @@ export async function batchScanCityGeneric({
     try {
       const center = wardCenter(ward.geometry);
       const result = await browserScan(
-        { area: center, blocks: DEFAULT_BLOCKS, boundary: ward, options: {}, signal },
+        {
+          area: center,
+          blocks: configBlocks || DEFAULT_BLOCKS,
+          boundary: ward,
+          options: { maxResults: configMaxResults ?? Infinity },
+          signal,
+        },
         () => {}
       );
 
