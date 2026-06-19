@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout, { NavBtn, BackBtn } from "../../components/layout/AppLayout.jsx";
 import ScanProgress from "../../components/city/ScanProgress.jsx";
-import { getCity, getCities, addCity, seedBuiltInCities, upsertScanFile } from "../../utils/cityDB.js";
+import { getCity, getCities, addCity, seedBuiltInCities, upsertScanFile, readAllWardGeometryForScan, writeWardGeometryBatch } from "../../utils/cityDB.js";
 import useScanFileStore from "../../store/scanFileStore.js";
-import { aggregateWards, exportScanFileJSON } from "../../services/cityBatchScan.js";
+import { aggregateWards, exportScanFileJSON, exportScanFileFull } from "../../services/cityBatchScan.js";
 import { DEFAULT_BLOCKS, BLOCKS, BLOCK_KEYS } from "../../config/blocks.js";
 
 const C = {
@@ -327,6 +327,7 @@ function ImportScanModal({ cityId, onImported, onCancel }) {
       const now = new Date().toISOString();
       const scanId = `${cityId}_import_${Date.now()}`;
       const scanName = meta.name || file?.name?.replace(/\.json$/i, "") || `Import ${new Date().toLocaleDateString("vi-VN")}`;
+
       await upsertScanFile({
         id: scanId,
         cityId: meta.cityId || cityId,
@@ -337,6 +338,17 @@ function ImportScanModal({ cityId, onImported, onCancel }) {
         status: wards.filter(w => w.error).length > 0 ? "resumable" : "done",
         wardCounts: wards,
       });
+
+      // Restore geometry if this is a full export (format: full-v1)
+      if (data.geometry?.length) {
+        const remapped = data.geometry.map(rec => ({
+          ...rec,
+          id: `${scanId}_${rec.wardCode}`,
+          scanId,
+        }));
+        await writeWardGeometryBatch(remapped);
+      }
+
       onImported(scanId);
     } catch (e) { setErr(e.message); }
     setImporting(false);
@@ -355,6 +367,10 @@ function ImportScanModal({ cityId, onImported, onCancel }) {
         {data && (
           <div style={{ fontSize: "0.7rem", color: C.green, marginBottom: "0.5rem" }}>
             ✓ {(data.wards || data.wardCounts || []).length} phường · {data.meta?.name || "Không có tên"}
+            {data.geometry?.length > 0
+              ? <span style={{ color: C.cyan }}> · {data.geometry.length} phường có geometry (xem chi tiết ngay)</span>
+              : <span style={{ color: C.amber }}> · Không có geometry cache (thống kê only)</span>
+            }
           </div>
         )}
         {err && <div style={{ fontSize: "0.7rem", color: C.red, marginBottom: "0.5rem" }}>{err}</div>}
@@ -565,6 +581,58 @@ function RenameInput({ defaultValue = "", placeholder, onConfirm, onCancel, inde
 
 const iconBtn = { background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "0.72rem", padding: "2px 3px", borderRadius: "3px" };
 
+/* ── Export buttons ──────────────────────────────────────────────── */
+function ExportButtons({ file }) {
+  const [exporting, setExporting] = useState(false);
+  const [geoCount, setGeoCount]   = useState(null);
+
+  async function doFullExport() {
+    setExporting(true);
+    try {
+      await exportScanFileFull(file, readAllWardGeometryForScan);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  // Lazy-check how many geometry records exist for this scan
+  useEffect(() => {
+    readAllWardGeometryForScan(file.id).then(recs => setGeoCount(recs.length)).catch(() => {});
+  }, [file.id]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+      <div style={{ fontSize: "0.62rem", color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700 }}>Export</div>
+      <button
+        onClick={doFullExport}
+        disabled={exporting}
+        style={{
+          background: `${C.cyan}14`, border: `1px solid ${C.cyan}44`, borderRadius: "8px",
+          padding: "0.55rem 0.7rem", color: C.cyan, fontWeight: 700, fontSize: "0.8rem",
+          cursor: exporting ? "wait" : "pointer", textAlign: "left",
+        }}
+      >
+        {exporting ? "⏳ Đang xuất..." : "⬇ Export đầy đủ (bao gồm cache)"}
+        {geoCount != null && !exporting && (
+          <span style={{ fontWeight: 400, fontSize: "0.68rem", color: C.muted, display: "block", marginTop: "2px" }}>
+            {geoCount} phường có geometry · xem chi tiết không cần quét lại
+          </span>
+        )}
+      </button>
+      <button
+        onClick={() => exportScanFileJSON(file)}
+        style={{
+          background: "none", border: `1px solid ${C.border}`, borderRadius: "8px",
+          padding: "0.45rem 0.7rem", color: C.dim, fontSize: "0.75rem",
+          cursor: "pointer", textAlign: "left",
+        }}
+      >
+        ⬇ Export thống kê (nhỏ gọn, không có cache)
+      </button>
+    </div>
+  );
+}
+
 /* ── Scan file detail panel ──────────────────────────────────────── */
 function ScanDetail({ file, cityId, resume, retryFailed }) {
   const navigate = useNavigate();
@@ -643,10 +711,7 @@ function ScanDetail({ file, cityId, resume, retryFailed }) {
           }}>📊 Xem thống kê & bản đồ</button>
         )}
         {(file.wardCounts?.length > 0) && (
-          <button onClick={() => exportScanFileJSON(file)} style={{
-            background: `${C.amber}14`, border: `1px solid ${C.amber}44`, borderRadius: "8px",
-            padding: "0.55rem", color: C.amber, fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
-          }}>⬇ Export JSON (chuyển máy)</button>
+          <ExportButtons file={file} />
         )}
 
         {isUnfinished && resume && (

@@ -307,6 +307,31 @@ export function exportScanFileJSON(scanFile) {
   a.click(); URL.revokeObjectURL(url);
 }
 
+export async function exportScanFileFull(scanFile, readAllGeometry) {
+  const geometry = await readAllGeometry(scanFile.id);
+  const payload = {
+    meta: {
+      exportedAt: new Date().toISOString(),
+      format: "full-v1",
+      scanId: scanFile.id,
+      cityId: scanFile.cityId,
+      name: scanFile.name,
+      createdAt: scanFile.createdAt,
+      totalWards: scanFile.wardCounts?.length || 0,
+      completed: (scanFile.wardCounts || []).filter(w => !w.error).length,
+    },
+    aggregate: aggregateWards(scanFile.wardCounts || []),
+    wards: scanFile.wardCounts || [],
+    geometry,
+  };
+  const json = JSON.stringify(payload);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url;
+  a.download = `${scanFile.cityId}-scan-full-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 export function exportScanFileCSV(scanFile) {
   exportCSV(scanFile.wardCounts || []);
 }
