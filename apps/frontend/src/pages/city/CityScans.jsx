@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout, { NavBtn, BackBtn } from "../../components/layout/AppLayout.jsx";
 import ScanProgress from "../../components/city/ScanProgress.jsx";
-import { getCity, getCities, addCity, seedBuiltInCities } from "../../utils/cityDB.js";
+import { getCity, getCities, addCity, seedBuiltInCities, upsertScanFile } from "../../utils/cityDB.js";
 import useScanFileStore from "../../store/scanFileStore.js";
-import { aggregateWards } from "../../services/cityBatchScan.js";
+import { aggregateWards, exportScanFileJSON } from "../../services/cityBatchScan.js";
+import { DEFAULT_BLOCKS, BLOCKS, BLOCK_KEYS } from "../../config/blocks.js";
 
 const C = {
   bg: "#060d1a", card: "#0d1829", card2: "#0f1f35", border: "#1a2e4a",
@@ -38,9 +39,9 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
   );
 }
 
-/* ── New scan modal (2-step) ─────────────────────────────────────── */
+/* ── New scan modal (3-step: city → name → config) ───────────────── */
 function NewScanModal({ cities, onConfirm, onAddCity, onCancel }) {
-  const [step, setStep] = useState("city"); // "city" | "name"
+  const [step, setStep] = useState("city"); // "city" | "name" | "config"
   const [selectedCity, setSelectedCity] = useState(cities[0] || null);
   const [showImport, setShowImport]     = useState(false);
   const [importing, setImporting]       = useState(false);
@@ -51,10 +52,28 @@ function NewScanModal({ cities, onConfirm, onAddCity, onCancel }) {
   const [importGeojson, setImportGeojson]   = useState(null);
   const [importWardCount, setImportWardCount] = useState(0);
 
-  // step 2
+  // step 2 – name
   const defaultScanName = `${selectedCity?.name || ""} — ${new Date().toLocaleDateString("vi-VN")}`;
   const [scanName, setScanName] = useState(defaultScanName);
   useEffect(() => { setScanName(`${selectedCity?.name || ""} — ${new Date().toLocaleDateString("vi-VN")}`); }, [selectedCity]);
+
+  // step 3 – config
+  const [selectedBlocks, setSelectedBlocks] = useState(new Set(DEFAULT_BLOCKS));
+  const [maxResultsPreset, setMaxResultsPreset] = useState("unlimited"); // "100" | "300" | "500" | "800" | "unlimited"
+  const presets = [
+    { val: "100",       label: "100 điểm / phường",  sub: "Nhanh, ít dữ liệu" },
+    { val: "300",       label: "300 điểm / phường",  sub: "Cân bằng" },
+    { val: "500",       label: "500 điểm / phường",  sub: "Mặc định trình duyệt" },
+    { val: "800",       label: "800 điểm / phường",  sub: "Nhiều dữ liệu" },
+    { val: "unlimited", label: "Không giới hạn",     sub: "Chậm nhất, đầy đủ nhất" },
+  ];
+  function toggleBlock(id) {
+    setSelectedBlocks(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   function handleFileChange(e) {
     const file = e.target.files?.[0];
@@ -162,8 +181,7 @@ function NewScanModal({ cities, onConfirm, onAddCity, onCancel }) {
     </div>
   );
 
-  // step === "name"
-  return (
+  if (step === "name") return (
     <div style={boxStyle}>
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
@@ -178,16 +196,176 @@ function NewScanModal({ cities, onConfirm, onAddCity, onCancel }) {
           autoFocus
           value={scanName}
           onChange={e => setScanName(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") onConfirm(selectedCity, scanName.trim() || defaultScanName); if (e.key === "Escape") onCancel(); }}
+          onKeyDown={e => { if (e.key === "Enter") setStep("config"); if (e.key === "Escape") onCancel(); }}
           style={{ width: "100%", background: C.card2, border: `1px solid ${C.cyan}55`, borderRadius: "7px", padding: "0.5rem 0.75rem", color: C.text, fontSize: "0.84rem", outline: "none", boxSizing: "border-box", marginBottom: "1.25rem" }}
         />
         <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
           <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: "7px", padding: "0.5rem 1.1rem", color: C.muted, cursor: "pointer", fontSize: "0.82rem" }}>Hủy</button>
-          <button onClick={() => onConfirm(selectedCity, scanName.trim() || defaultScanName)} style={{
-            background: `linear-gradient(135deg,${C.green},${C.cyan})`, border: "none",
+          <button onClick={() => setStep("config")} style={{
+            background: `linear-gradient(135deg,${C.cyan},${C.violet})`, border: "none",
             borderRadius: "7px", padding: "0.5rem 1.4rem", color: "#fff", fontWeight: 700,
             fontSize: "0.84rem", cursor: "pointer",
-          }}>🚀 Bắt đầu quét</button>
+          }}>Cấu hình →</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // step === "config"
+  const finalMaxResults = maxResultsPreset === "unlimited" ? Infinity : parseInt(maxResultsPreset);
+  return (
+    <div style={boxStyle}>
+      <div style={{ ...cardStyle, maxWidth: "560px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
+          <button onClick={() => setStep("name")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: "0.8rem", padding: 0 }}>← Đổi tên</button>
+        </div>
+        <div style={{ fontSize: "1rem", fontWeight: 800, color: C.text, marginBottom: "0.1rem" }}>Cấu hình quét — {selectedCity?.name}</div>
+        <div style={{ fontSize: "0.72rem", color: C.muted, marginBottom: "1.1rem" }}>"{scanName}"</div>
+
+        {/* Block selection */}
+        <div style={{ marginBottom: "1.1rem" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, color: C.dim, marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+            Block địa điểm
+            <span style={{ marginLeft: "0.5rem", color: C.muted, fontWeight: 400, textTransform: "none" }}>({selectedBlocks.size}/{BLOCK_KEYS.filter(k => BLOCKS[k].detect !== "none").length} active)</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+            {BLOCK_KEYS.map(id => {
+              const b = BLOCKS[id];
+              const active = selectedBlocks.has(id);
+              const noDetect = b.detect === "none";
+              return (
+                <label key={id} style={{
+                  display: "flex", alignItems: "center", gap: "0.45rem",
+                  padding: "0.35rem 0.6rem", borderRadius: "6px", cursor: noDetect ? "not-allowed" : "pointer",
+                  background: active ? `${b.color}14` : C.card2,
+                  border: `1px solid ${active ? b.color + "55" : C.border}`,
+                  opacity: noDetect ? 0.45 : 1,
+                }}>
+                  <input type="checkbox" checked={active} disabled={noDetect}
+                    onChange={() => !noDetect && toggleBlock(id)}
+                    style={{ accentColor: b.color, cursor: noDetect ? "not-allowed" : "pointer" }} />
+                  <span style={{ fontSize: "0.82rem" }}>{b.symbol}</span>
+                  <span style={{ fontSize: "0.68rem", color: active ? C.text : C.muted, flex: 1 }}>{id} — {b.name.slice(0, 26)}{b.name.length > 26 ? "…" : ""}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.4rem" }}>
+            <button onClick={() => setSelectedBlocks(new Set(DEFAULT_BLOCKS))} style={{ fontSize: "0.65rem", background: "none", border: `1px solid ${C.border}`, borderRadius: "4px", padding: "2px 8px", color: C.muted, cursor: "pointer" }}>Reset mặc định</button>
+            <button onClick={() => setSelectedBlocks(new Set(BLOCK_KEYS))} style={{ fontSize: "0.65rem", background: "none", border: `1px solid ${C.border}`, borderRadius: "4px", padding: "2px 8px", color: C.muted, cursor: "pointer" }}>Chọn tất cả</button>
+            <button onClick={() => setSelectedBlocks(new Set())} style={{ fontSize: "0.65rem", background: "none", border: `1px solid ${C.border}`, borderRadius: "4px", padding: "2px 8px", color: C.muted, cursor: "pointer" }}>Bỏ chọn tất cả</button>
+          </div>
+        </div>
+
+        {/* Max results preset */}
+        <div style={{ marginBottom: "1.25rem" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, color: C.dim, marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.07em" }}>Giới hạn kết quả / phường</div>
+          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+            {presets.map(p => (
+              <button key={p.val} onClick={() => setMaxResultsPreset(p.val)} style={{
+                padding: "0.35rem 0.75rem", borderRadius: "7px", fontSize: "0.72rem", cursor: "pointer",
+                background: maxResultsPreset === p.val ? `${C.cyan}22` : C.card2,
+                border: `1px solid ${maxResultsPreset === p.val ? C.cyan + "88" : C.border}`,
+                color: maxResultsPreset === p.val ? C.cyan : C.muted, fontWeight: maxResultsPreset === p.val ? 700 : 400,
+              }}>
+                <div>{p.label}</div>
+                <div style={{ fontSize: "0.6rem", opacity: 0.7 }}>{p.sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: "7px", padding: "0.5rem 1.1rem", color: C.muted, cursor: "pointer", fontSize: "0.82rem" }}>Hủy</button>
+          <button
+            disabled={selectedBlocks.size === 0}
+            onClick={() => onConfirm(selectedCity, scanName.trim() || defaultScanName, {
+              blocks: [...selectedBlocks],
+              maxResults: finalMaxResults,
+            })}
+            style={{
+              background: selectedBlocks.size > 0 ? `linear-gradient(135deg,${C.green},${C.cyan})` : C.card,
+              border: "none", borderRadius: "7px", padding: "0.5rem 1.4rem",
+              color: selectedBlocks.size > 0 ? "#fff" : C.muted, fontWeight: 700,
+              fontSize: "0.84rem", cursor: selectedBlocks.size > 0 ? "pointer" : "not-allowed",
+            }}>🚀 Bắt đầu quét</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Import scan modal ───────────────────────────────────────────── */
+function ImportScanModal({ cityId, onImported, onCancel }) {
+  const [file, setFile]     = useState(null);
+  const [data, setData]     = useState(null);
+  const [err, setErr]       = useState("");
+  const [importing, setImporting] = useState(false);
+
+  function handleFile(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (!parsed.wards && !parsed.wardCounts) { setErr("File không hợp lệ — cần có trường 'wards' hoặc 'wardCounts'"); return; }
+        setData(parsed);
+        setErr("");
+        setFile(f);
+      } catch { setErr("File không hợp lệ — phải là JSON"); }
+    };
+    reader.readAsText(f);
+  }
+
+  async function doImport() {
+    if (!data) return;
+    setImporting(true);
+    try {
+      const wards = data.wards || data.wardCounts || [];
+      const meta = data.meta || {};
+      const now = new Date().toISOString();
+      const scanId = `${cityId}_import_${Date.now()}`;
+      const scanName = meta.name || file?.name?.replace(/\.json$/i, "") || `Import ${new Date().toLocaleDateString("vi-VN")}`;
+      await upsertScanFile({
+        id: scanId,
+        cityId: meta.cityId || cityId,
+        name: scanName,
+        folderId: null,
+        createdAt: meta.exportedAt || now,
+        savedAt: now,
+        status: wards.filter(w => w.error).length > 0 ? "resumable" : "done",
+        wardCounts: wards,
+      });
+      onImported(scanId);
+    } catch (e) { setErr(e.message); }
+    setImporting(false);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "14px", padding: "1.75rem", maxWidth: "420px", width: "90%", margin: "1rem" }}>
+        <div style={{ fontSize: "1rem", fontWeight: 800, color: C.text, marginBottom: "0.25rem" }}>Import kết quả quét</div>
+        <div style={{ fontSize: "0.75rem", color: C.dim, marginBottom: "1.25rem" }}>Chọn file JSON đã export từ máy khác. Dữ liệu thống kê sẽ được khôi phục; geometry cần quét lại để xem chi tiết phường.</div>
+
+        <label style={{ fontSize: "0.72rem", color: C.muted, display: "block", marginBottom: "0.3rem" }}>File JSON export</label>
+        <input type="file" accept=".json,application/json" onChange={handleFile}
+          style={{ fontSize: "0.74rem", color: C.dim, marginBottom: "0.6rem", display: "block" }} />
+
+        {data && (
+          <div style={{ fontSize: "0.7rem", color: C.green, marginBottom: "0.5rem" }}>
+            ✓ {(data.wards || data.wardCounts || []).length} phường · {data.meta?.name || "Không có tên"}
+          </div>
+        )}
+        {err && <div style={{ fontSize: "0.7rem", color: C.red, marginBottom: "0.5rem" }}>{err}</div>}
+
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "1rem" }}>
+          <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: "7px", padding: "0.45rem 1rem", color: C.muted, cursor: "pointer", fontSize: "0.82rem" }}>Hủy</button>
+          <button onClick={doImport} disabled={!data || importing} style={{
+            background: data ? `${C.green}22` : C.card, border: `1px solid ${data ? C.green + "55" : C.border}`,
+            borderRadius: "7px", padding: "0.45rem 1.2rem", color: data ? C.green : C.muted,
+            fontWeight: 700, fontSize: "0.82rem", cursor: data ? "pointer" : "not-allowed",
+          }}>{importing ? "Đang import..." : "⬆ Import"}</button>
         </div>
       </div>
     </div>
@@ -464,6 +642,12 @@ function ScanDetail({ file, cityId, resume, retryFailed }) {
             color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
           }}>📊 Xem thống kê & bản đồ</button>
         )}
+        {(file.wardCounts?.length > 0) && (
+          <button onClick={() => exportScanFileJSON(file)} style={{
+            background: `${C.amber}14`, border: `1px solid ${C.amber}44`, borderRadius: "8px",
+            padding: "0.55rem", color: C.amber, fontWeight: 700, fontSize: "0.8rem", cursor: "pointer",
+          }}>⬇ Export JSON (chuyển máy)</button>
+        )}
 
         {isUnfinished && resume && (
           <button onClick={() => resume(file.id)} style={{
@@ -489,9 +673,9 @@ function ScanDetail({ file, cityId, resume, retryFailed }) {
 }
 
 /* ── Sidebar scan controls ───────────────────────────────────────── */
-function SidebarControls({ isRunning, onNewScan, onStop }) {
+function SidebarControls({ isRunning, onNewScan, onStop, onImport }) {
   return (
-    <div style={{ borderTop: `1px solid ${C.border}`, padding: "0.75rem" }}>
+    <div style={{ borderTop: `1px solid ${C.border}`, padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
       {isRunning ? (
         <button onClick={onStop} style={{
           background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: "7px",
@@ -499,11 +683,17 @@ function SidebarControls({ isRunning, onNewScan, onStop }) {
           cursor: "pointer", width: "100%",
         }}>⏹ Dừng quét</button>
       ) : (
-        <button onClick={onNewScan} style={{
-          background: `linear-gradient(135deg,${C.green},${C.cyan})`, border: "none",
-          borderRadius: "7px", padding: "0.55rem", color: "#fff", fontWeight: 700,
-          fontSize: "0.8rem", cursor: "pointer", width: "100%",
-        }}>+ Quét mới</button>
+        <>
+          <button onClick={onNewScan} style={{
+            background: `linear-gradient(135deg,${C.green},${C.cyan})`, border: "none",
+            borderRadius: "7px", padding: "0.55rem", color: "#fff", fontWeight: 700,
+            fontSize: "0.8rem", cursor: "pointer", width: "100%",
+          }}>+ Quét mới</button>
+          <button onClick={onImport} style={{
+            background: "none", border: `1px solid ${C.border}`, borderRadius: "7px",
+            padding: "0.45rem", color: C.dim, fontSize: "0.75rem", cursor: "pointer", width: "100%",
+          }}>⬆ Import từ máy khác</button>
+        </>
       )}
     </div>
   );
@@ -517,6 +707,7 @@ export default function CityScans({ defaultCityId }) {
   const cityId = city?.id || defaultCityId || "hcm";
   const [selectedFile, setSelectedFile] = useState(null);
   const [showNewScanModal, setShowNewScanModal] = useState(false);
+  const [showImportModal, setShowImportModal]   = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const runSinceRef = useRef(0);
 
@@ -577,15 +768,14 @@ export default function CityScans({ defaultCityId }) {
     return newCity;
   }
 
-  async function handleNewScan(selectedCity, name) {
+  async function handleNewScan(selectedCity, name, config) {
     setShowNewScanModal(false);
     runSinceRef.current = 0;
-    // Switch city context if changed
     if (selectedCity.id !== city?.id) {
       setCity(selectedCity);
       await setActiveCity(selectedCity);
     }
-    await startFresh(name);
+    await startFresh(name, config);
   }
 
   function handleResume(id) {
@@ -636,6 +826,7 @@ export default function CityScans({ defaultCityId }) {
             isRunning={isRunning}
             onNewScan={() => setShowNewScanModal(true)}
             onStop={stopScan}
+            onImport={() => setShowImportModal(true)}
           />
         </div>
         )}
@@ -678,6 +869,19 @@ export default function CityScans({ defaultCityId }) {
           onAddCity={handleAddCity}
           onConfirm={handleNewScan}
           onCancel={() => setShowNewScanModal(false)}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportScanModal
+          cityId={cityId}
+          onImported={async (scanId) => {
+            setShowImportModal(false);
+            await useScanFileStore.getState().loadScanFiles();
+            const sf = useScanFileStore.getState().scanFiles.find(f => f.id === scanId);
+            if (sf) setSelectedFile(sf);
+          }}
+          onCancel={() => setShowImportModal(false)}
         />
       )}
     </AppLayout>

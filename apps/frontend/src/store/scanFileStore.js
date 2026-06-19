@@ -85,7 +85,7 @@ const useScanFileStore = create((set, get) => ({
   },
 
   // ── Scan runner ───────────────────────────────────────────────────
-  async _runScan({ scanId, mode, existingResults = [] }) {
+  async _runScan({ scanId, mode, existingResults = [], config = {} }) {
     const { activeCityMeta } = get();
     if (!activeCityMeta) return;
 
@@ -118,6 +118,8 @@ const useScanFileStore = create((set, get) => ({
         onProgress: p => set({ progress: p }),
         onWardDone,
         onWriteGeometry: writeWardGeometry,
+        blocks: config.blocks ?? undefined,
+        maxResults: config.maxResults ?? undefined,
       });
 
       const finalStatus = deriveStatus(results, activeCityMeta.wardCount);
@@ -138,16 +140,16 @@ const useScanFileStore = create((set, get) => ({
     await get().loadScanFiles();
   },
 
-  async startFresh(name) {
+  async startFresh(name, config = {}) {
     const { activeCityMeta, activeCityId } = get();
     if (!activeCityMeta) return;
     const scanId = `${activeCityId}_${Date.now()}`;
     const now = new Date().toISOString();
     const scanName = name || `Quét ${new Date().toLocaleDateString("vi-VN")}`;
-    await upsertScanFile({ id: scanId, cityId: activeCityId, name: scanName, folderId: null, createdAt: now, savedAt: now, status: "running", wardCounts: [] });
+    await upsertScanFile({ id: scanId, cityId: activeCityId, name: scanName, folderId: null, createdAt: now, savedAt: now, status: "running", wardCounts: [], config });
     await clearWardGeometryForScan(scanId);
     await get().loadScanFiles();
-    await get()._runScan({ scanId, mode: "full", existingResults: [] });
+    await get()._runScan({ scanId, mode: "full", existingResults: [], config });
   },
 
   async resume(scanId) {

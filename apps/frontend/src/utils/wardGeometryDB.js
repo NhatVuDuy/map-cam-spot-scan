@@ -8,7 +8,7 @@
 
 const DB_NAME  = "cam-scan-db";
 const STORE    = "ward-geometry";
-const DB_VER   = 2;
+const DB_VER   = 3;
 
 function openDB() {
   return new Promise((resolve, reject) => {

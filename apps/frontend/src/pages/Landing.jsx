@@ -107,16 +107,22 @@ function FeatureCard({ icon, title, badge, desc, bullets, color, cta, onClick, d
   );
 }
 
-/* ── Category badge grid ─────────────────────────────────────────── */
+/* ── Block badge grid ────────────────────────────────────────────── */
 const CAT_META = [
-  { key: "intersection", label: "Giao lộ",    icon: "🔀", color: C.cyan,   desc: "Ngã ba, ngã tư, đầu hẻm" },
-  { key: "school",       label: "Trường học",  icon: "🏫", color: C.violet, desc: "Trường, ĐH, CĐ, MG" },
-  { key: "hospital",     label: "Bệnh viện",   icon: "🏥", color: C.green,  desc: "BV, phòng khám, y tế" },
-  { key: "market",       label: "Chợ / TTTM",  icon: "🏪", color: C.amber,  desc: "Chợ, siêu thị, TTTM" },
-  { key: "hotel",        label: "Khách sạn",   icon: "🏨", color: C.pink,   desc: "Hotel, motel, homestay" },
-  { key: "park",         label: "Công viên",   icon: "🌳", color: "#86efac", desc: "Công viên, vườn hoa" },
-  { key: "conference",   label: "Hội nghị",    icon: "🏢", color: "#f9a8d4", desc: "Trung tâm hội nghị, sự kiện" },
-  { key: "government",   label: "Cơ quan",     icon: "🏛️", color: "#fcd34d", desc: "UBND, công an, tòa án" },
+  { key: "B01",   label: "Ngã tư có đèn",        icon: "🚦", color: "#FF6B6B", desc: "Ngã tư / ngã năm có tín hiệu đèn" },
+  { key: "B02",   label: "Ngã ba có đèn",         icon: "🚥", color: "#FF8C42", desc: "Ngã ba có tín hiệu đèn" },
+  { key: "B03",   label: "Ngã tư/ba không đèn",   icon: "⚡", color: "#FCC419", desc: "Giao lộ tỉnh / quốc lộ không đèn" },
+  { key: "B04",   label: "Bùng binh / Vòng xuyến",icon: "🔄", color: "#51CF66", desc: "Roundabout, vòng xuyến giao thông" },
+  { key: "B05",   label: "Tuyến đường trọng điểm",icon: "🛣️", color: "#339AF0", desc: "Đường thẳng trọng điểm (per km)" },
+  { key: "B06",   label: "Cửa ngõ / Trạm KS",     icon: "🚧", color: "#845EF7", desc: "Cửa ngõ TP, trạm kiểm soát" },
+  { key: "B07",   label: "Đầu hẻm / Ngõ dân cư",  icon: "↪",  color: "#22D3EE", desc: "Đầu hẻm, lối vào khu dân cư" },
+  { key: "B07-S", label: "Giao cắt trong hẻm",     icon: "✚",  color: "#74C0FC", desc: "Giao cắt nhỏ bên trong hẻm" },
+  { key: "B08",   label: "Khu công cộng đông người",icon: "👥", color: "#F06595", desc: "Chợ, công viên, TTTM, hội nghị" },
+  { key: "B09",   label: "Bến xe / Nhà ga / Sân bay",icon: "🚌",color: "#A9E34B", desc: "Đầu mối giao thông lớn" },
+  { key: "B10",   label: "Trường / Bệnh viện / CQ", icon: "🏫", color: "#FF8787", desc: "Cơ sở giáo dục, y tế, hành chính" },
+  { key: "B11",   label: "Khu công nghiệp / KCX",   icon: "🏭", color: "#FFA94D", desc: "Khu công nghiệp, khu chế xuất" },
+  { key: "B12",   label: "Cầu vượt / Hầm chui",     icon: "🌉", color: "#66D9E8", desc: "Cầu vượt, hầm chui, điểm ngập" },
+  { key: "B13",   label: "Nội bộ khu đô thị tư nhân",icon: "🏘️",color: "#A8B2C1", desc: "Nhập thủ công — không detect OSM" },
 ];
 
 /* ── Main ────────────────────────────────────────────────────────── */
@@ -215,10 +221,10 @@ export default function Landing() {
           {/* Stats */}
           <div style={{ display: "flex", gap: "2.5rem", justifyContent: "center", marginTop: "4rem", flexWrap: "wrap" }}>
             {[
-              { label: "Phường/xã TP.HCM",  val: 168,  suffix: "" },
-              { label: "Loại địa điểm",       val: 8,    suffix: "" },
-              { label: "Overpass endpoints",   val: 3,    suffix: "" },
-              { label: "Backend cần thiết",    val: 0,    suffix: "" },
+              { label: "Phường/xã TP.HCM",  val: 168, suffix: "" },
+              { label: "Block địa điểm",       val: 14,  suffix: "" },
+              { label: "Loại camera",           val: 7,   suffix: "" },
+              { label: "Backend cần thiết",     val: 0,   suffix: "" },
             ].map(({ label, val, suffix }) => (
               <div key={label} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "2rem", fontWeight: 900, color: C.cyan }}>
@@ -273,9 +279,9 @@ export default function Landing() {
       <section style={{ padding: "4rem 2rem", background: C.bg2, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
-            <Tag color={C.green}>8 loại địa điểm</Tag>
+            <Tag color={C.green}>14 block địa điểm · 7 loại camera</Tag>
             <h2 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.75rem 0 0.5rem" }}>Quét những gì?</h2>
-            <p style={{ color: C.dim, fontSize: "0.88rem" }}>Phân loại tự động từ tags OpenStreetMap + nhận diện tên tiếng Việt</p>
+            <p style={{ color: C.dim, fontSize: "0.88rem" }}>14 block B01–B13 + B07-S, phân loại tự động từ tags OpenStreetMap · ước tính 7 loại camera ITS1/ITS2/P2/P1/B3/B2/B1</p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "0.85rem" }}>
             {CAT_META.map((c) => (
