@@ -204,6 +204,30 @@ export async function listWardGeometryCodes(scanId) {
   return keys.filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length));
 }
 
+export async function readAllWardGeometryForScan(scanId) {
+  const db    = await openDB();
+  const keys  = await getAllKeys(db, STORES.wardGeo);
+  const prefix = `${scanId}_`;
+  const matching = keys.filter(k => k.startsWith(prefix));
+  const result = [];
+  for (const key of matching) {
+    const rec = await get(db, STORES.wardGeo, key);
+    if (rec) result.push(rec);
+  }
+  return result;
+}
+
+export async function writeWardGeometryBatch(records) {
+  const db = await openDB();
+  const tx = db.transaction(STORES.wardGeo, "readwrite");
+  const store = tx.objectStore(STORES.wardGeo);
+  await Promise.all(records.map(rec => new Promise((res, rej) => {
+    const req = store.put(rec);
+    req.onsuccess = () => res();
+    req.onerror   = (e) => rej(e.target.error);
+  })));
+}
+
 export async function clearWardGeometryForScan(scanId) {
   const db   = await openDB();
   return _deleteWardGeoForScan(db, scanId);
