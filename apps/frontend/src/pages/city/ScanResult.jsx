@@ -198,12 +198,19 @@ function CamConfigModal({ camConfig, onChange, onClose }) {
 
 /* ── Stats dashboard ─────────────────────────────────────────────── */
 function Dashboard({ agg, wardResults, city, camConfig, activeBlocks }) {
-  const topWards = [...wardResults].filter(w => !w.error).sort((a, b) => {
-    const sumA = Object.values(a.byCat || {}).reduce((s, v) => s + v, 0);
-    const sumB = Object.values(b.byCat || {}).reduce((s, v) => s + v, 0);
-    return sumB - sumA;
-  }).slice(0, 10);
-  const maxPoi = topWards[0] ? Object.values(topWards[0].byCat || {}).reduce((s, v) => s + v, 0) : 1;
+  function wardCamCount(w) {
+    let total = 0;
+    for (const [blockId, cnt] of Object.entries(w.byCat || {})) {
+      const eff = effectiveCams(blockId, camConfig);
+      total += CAM_TYPES.reduce((s, t) => s + (eff[t] || 0) * cnt, 0);
+    }
+    return total;
+  }
+
+  const topWards = [...wardResults].filter(w => !w.error)
+    .sort((a, b) => wardCamCount(b) - wardCamCount(a))
+    .slice(0, 10);
+  const maxCam = topWards[0] ? wardCamCount(topWards[0]) : 1;
 
   const camRows = CAM_TYPES.map(t => ({ type: t, v: agg.byCam?.[t] || 0, color: CAM_COLORS[t], label: CAM_LABELS[t] })).filter(r => r.v > 0);
 
@@ -245,16 +252,16 @@ function Dashboard({ agg, wardResults, city, camConfig, activeBlocks }) {
 
         {/* Top wards */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "1rem 1.1rem" }}>
-          <div style={{ fontSize: "0.65rem", fontWeight: 800, color: C.violet, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.75rem" }}>Top 10 phường</div>
+          <div style={{ fontSize: "0.65rem", fontWeight: 800, color: C.violet, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.75rem" }}>Top 10 phường — theo camera</div>
           {topWards.map((w, i) => {
-            const poi = Object.values(w.byCat || {}).reduce((s, v) => s + v, 0);
+            const cam = wardCamCount(w);
             return (
               <div key={w.code} style={{ marginBottom: "0.4rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", marginBottom: "0.1rem" }}>
                   <span style={{ color: i < 3 ? C.amber : C.dim }}>{i + 1}. {w.name}</span>
-                  <span style={{ color: C.text, fontWeight: 700 }}>{fmt(poi)}</span>
+                  <span style={{ color: C.cyan, fontWeight: 700 }}>📹 {fmt(cam)}</span>
                 </div>
-                <Bar pct={(poi / maxPoi) * 100} color={i < 3 ? C.amber : C.violet} delay={i * 50} />
+                <Bar pct={(cam / maxCam) * 100} color={i < 3 ? C.amber : C.violet} delay={i * 50} />
               </div>
             );
           })}
