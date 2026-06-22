@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useScanner } from "../../hooks/useScanner.js";
 import { useExport } from "../../hooks/useExport.js";
 import { BLOCKS, BLOCK_KEYS, SQUARE_BLOCKS, CAM_TYPES, CAM_COLORS, camTotal } from "../../config/blocks.js";
+import { loadCamConfig, effectiveCams } from "../../config/camConfig.js";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 
 /* ─── palette ─────────────────────────────────────────────────────────────── */
@@ -240,6 +241,13 @@ function StatsTab() {
   const { points, loading } = useScanner();
   const total = points.length;
 
+  const [camConfig, setCamConfig] = useState(() => loadCamConfig());
+  useEffect(() => {
+    const onFocus = () => setCamConfig(loadCamConfig());
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
   // Count per block
   const blockCounts = {};
   for (const p of points) {
@@ -247,14 +255,14 @@ function StatsTab() {
     blockCounts[k] = (blockCounts[k] || 0) + 1;
   }
 
-  // Calculate camera estimates per cam type
+  // Calculate camera estimates per cam type (respects camConfig overrides)
   const camEstimates = {};
   let totalCams = 0;
   for (const [blockId, count] of Object.entries(blockCounts)) {
-    const block = BLOCKS[blockId];
-    if (!block) continue;
+    if (!BLOCKS[blockId]) continue;
+    const eff = effectiveCams(blockId, camConfig);
     for (const camType of CAM_TYPES) {
-      const perSite = block.cams[camType] || 0;
+      const perSite = eff[camType] || 0;
       if (perSite > 0) {
         camEstimates[camType] = (camEstimates[camType] || 0) + count * perSite;
         totalCams += count * perSite;
@@ -330,7 +338,9 @@ function StatsTab() {
           {activeBlocks.map(blockId => {
             const block = BLOCKS[blockId];
             const cnt   = blockCounts[blockId] || 0;
-            const totalBlockCams = CAM_TYPES.reduce((s, t) => s + (block.cams[t] || 0) * cnt, 0);
+            const eff   = effectiveCams(blockId, camConfig);
+            const effTotal = CAM_TYPES.reduce((s, t) => s + (eff[t] || 0), 0);
+            const totalBlockCams = effTotal * cnt;
             if (!totalBlockCams) return null;
             const shape = SQUARE_BLOCKS.includes(blockId) ? "■" : "●";
             return (
@@ -345,17 +355,17 @@ function StatsTab() {
                     <span style={{ color: block.color }}>{blockId}</span>
                   </span>
                   <span style={{ fontSize: "0.68rem", color: "#94a3b8", flexShrink: 0 }}>
-                    {cnt}×{camTotal(block)} = <strong style={{ color: C.amber }}>{totalBlockCams}</strong>
+                    {cnt}×{effTotal} = <strong style={{ color: C.amber }}>{totalBlockCams}</strong>
                   </span>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                  {CAM_TYPES.filter(t => block.cams[t] > 0).map(t => (
+                  {CAM_TYPES.filter(t => (eff[t] || 0) > 0).map(t => (
                     <span key={t} style={{
                       fontSize: "0.6rem", padding: "1px 5px",
                       background: `${CAM_COLORS[t] || C.cyan}18`,
                       border: `1px solid ${CAM_COLORS[t] || C.cyan}44`,
                       borderRadius: "3px", color: CAM_COLORS[t] || C.cyan,
-                    }}>{t}×{block.cams[t]}</span>
+                    }}>{t}×{eff[t]}</span>
                   ))}
                 </div>
               </div>
