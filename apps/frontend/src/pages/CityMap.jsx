@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout, { BackBtn, NavBtn } from "../components/layout/AppLayout.jsx";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { aggregateWards } from "../services/cityBatchScan.js";
-import { BLOCKS } from "../config/blocks.js";
+import { BLOCKS, CAM_TYPES } from "../config/blocks.js";
+import { loadCamConfig, effectiveCams } from "../config/camConfig.js";
 import { getScanFile } from "../utils/cityDB.js";
 import useScanFileStore from "../store/scanFileStore.js";
 
@@ -48,6 +49,8 @@ export default function CityMap() {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const popupRef = useRef(null);
+  const rawGeojsonRef  = useRef(null);
+  const wardMapRef     = useRef({});
   const [loaded, setLoaded] = useState(false);
   const [densityMode, setDensityMode] = useState(false);  // false = absolute, true = per km²
   const [hoveredWard, setHoveredWard] = useState(null);
@@ -76,7 +79,16 @@ export default function CityMap() {
     }
     load();
   }, []);
-  const agg = useMemo(() => aggregateWards(wards), [wards]);
+  const [camConfig, setCamConfig] = useState(() => loadCamConfig());
+
+  // Re-read camConfig when page becomes visible (user may have changed it on Report page)
+  useEffect(() => {
+    const onFocus = () => setCamConfig(loadCamConfig());
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  const agg = useMemo(() => aggregateWards(wards, camConfig), [wards, camConfig]);
   const hasData = wards.filter(w => !w.error).length > 0;
 
   const wardMap = useMemo(() => {
@@ -84,6 +96,57 @@ export default function CityMap() {
     for (const w of wards) m[w.code] = w;
     return m;
   }, [wards]);
+
+  // Keep ref always current so refreshMapData can read latest values
+  useEffect(() => { wardMapRef.current = wardMap; }, [wardMap]);
+
+  // Re-enrich GeoJSON and update map source + paint when camConfig or wards change
+  const refreshMapData = useCallback((cfg) => {
+    const map = mapInstance.current;
+    const geojson = rawGeojsonRef.current;
+    if (!map || !geojson || !map.getSource?.("wards")) return;
+    const wm = wardMapRef.current;
+    const colorExpr = map._colorExpr;
+    if (!colorExpr) return;
+
+    const wardFeatures = geojson.features
+      .filter(f => f.properties.type === "ward")
+      .map(f => {
+        const w = wm[f.properties.code];
+        const areaKm2 = geometryAreaKm2(f.geometry);
+        const byCat = w?.byCat || {};
+        const ix = (byCat.B01||0)+(byCat.B02||0)+(byCat.B03||0)+(byCat.B07||0)+(byCat["B07-S"]||0);
+        const poiCount = Object.values(byCat).reduce((a,b)=>a+b,0);
+        let camCount = 0;
+        for (const [blockId, cnt] of Object.entries(byCat)) {
+          const eff = effectiveCams(blockId, cfg);
+          camCount += cnt * CAM_TYPES.reduce((s, t) => s + (eff[t] || 0), 0);
+        }
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            areaKm2:   Math.round(areaKm2 * 100) / 100,
+            camCount,
+            camDensity: areaKm2 > 0 ? Math.round(camCount / areaKm2) : 0,
+            poiCount,
+            poiDensity: areaKm2 > 0 ? Math.round(poiCount / areaKm2) : 0,
+            intersection: ix,
+            ixDensity:   areaKm2 > 0 ? Math.round(ix / areaKm2) : 0,
+            hasError: !!(w?.error),
+            hasData:  !!(w && !w.error),
+          },
+        };
+      });
+
+    const maxes = {
+      [METRIC.absKey]:  Math.max(...wardFeatures.map(f => f.properties[METRIC.absKey]  || 0), 1),
+      [METRIC.densKey]: Math.max(...wardFeatures.map(f => f.properties[METRIC.densKey] || 0), 1),
+    };
+    map._maxes = maxes;
+    map.getSource("wards").setData({ type: "FeatureCollection", features: wardFeatures });
+    map.setPaintProperty("wards-fill", "fill-color", colorExpr(metricKey, maxes[metricKey] || 1));
+  }, [metricKey]);
 
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
@@ -112,6 +175,7 @@ export default function CityMap() {
     map.on("load", async () => {
       const resp = await fetch("/data/hcm-boundaries.geojson");
       const geojson = await resp.json();
+      rawGeojsonRef.current = geojson;
 
       // Enrich ward features with scan data + computed density
       const wardFeatures = geojson.features
@@ -123,11 +187,11 @@ export default function CityMap() {
           // Intersection blocks B01-B03, B07, B07-S
           const ix = (byCat.B01||0)+(byCat.B02||0)+(byCat.B03||0)+(byCat.B07||0)+(byCat["B07-S"]||0);
           const poiCount = Object.values(byCat).reduce((a,b)=>a+b,0);
-          // Camera estimate per ward from block ratios
+          // Camera estimate per ward from block ratios (respects camConfig overrides)
           let camCount = 0;
           for (const [blockId, cnt] of Object.entries(byCat)) {
-            const block = BLOCKS[blockId];
-            if (block) camCount += cnt * Object.values(block.cams).reduce((a,b)=>a+b,0);
+            const eff = effectiveCams(blockId, camConfig);
+            camCount += cnt * CAM_TYPES.reduce((s, t) => s + (eff[t] || 0), 0);
           }
           return {
             ...f,
@@ -279,6 +343,12 @@ export default function CityMap() {
 
     return () => { map.remove(); mapInstance.current = null; };
   }, [wardMap, navigate]);
+
+  // Re-enrich map when camConfig changes (after initial load)
+  useEffect(() => {
+    if (!loaded) return;
+    refreshMapData(camConfig);
+  }, [camConfig, loaded, refreshMapData]);
 
   // Switch metric color when type or density mode changes
   useEffect(() => {
